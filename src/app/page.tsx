@@ -1,6 +1,6 @@
 'use client'
-import React, { useState, useEffect, useRef } from 'react';
-import { Car, Coins, RefreshCw, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Car, Coins, AlertTriangle } from 'lucide-react';
 
 // Define types for game history and state
 type GameHistoryEntry = {
@@ -28,35 +28,8 @@ const CarMultiplierGame: React.FC = () => {
   const roadRef = useRef<CanvasRenderingContext2D | null>(null);
   const treesRef = useRef<{ x: number, y: number, width: number, height: number }[]>([]);
 
-  // Initialize trees
-  const initializeTrees = () => {
-    const trees: { x: number, y: number, width: number, height: number }[] = [];
-    for (let i = 0; i < 20; i++) {
-      trees.push({
-        x: Math.random() * 800,
-        y: 300 + Math.random() * 200,
-        width: 30 + Math.random() * 50,
-        height: 100 + Math.random() * 100
-      });
-    }
-    treesRef.current = trees;
-  };
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    canvas.width = 800;
-    canvas.height = 600;
-    roadRef.current = ctx;
-    initializeTrees();
-    drawScene();
-  }, []);
-
-  const drawTree = (ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number) => {
+  // Memoize tree drawing function
+  const drawTree = useCallback((ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number) => {
     // Trunk
     ctx.fillStyle = '#5D4037';
     ctx.fillRect(x + width * 0.4, y + height, width * 0.2, height * 0.2);
@@ -69,9 +42,10 @@ const CarMultiplierGame: React.FC = () => {
     ctx.lineTo(x + width, y + height);
     ctx.closePath();
     ctx.fill();
-  };
+  }, []);
 
-  const drawCar = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
+  // Memoize car drawing function
+  const drawCar = useCallback((ctx: CanvasRenderingContext2D, x: number, y: number) => {
     // Car body
     ctx.fillStyle = '#E53935';
     ctx.beginPath();
@@ -98,9 +72,10 @@ const CarMultiplierGame: React.FC = () => {
     ctx.arc(x + 10, y + 5, 5, 0, Math.PI * 2);
     ctx.arc(x + 40, y + 5, 5, 0, Math.PI * 2);
     ctx.fill();
-  };
+  }, []);
 
-  const drawScene = (crashed = false) => {
+  // Memoize scene drawing function
+  const drawScene = useCallback((crashed = false) => {
     const ctx = roadRef.current;
     const canvas = canvasRef.current;
     if (!ctx || !canvas) return;
@@ -164,54 +139,77 @@ const CarMultiplierGame: React.FC = () => {
       drawCar(ctx, canvas.width / 2 - 25, canvas.height - 100 - carPositionRef.current);
     }
     ctx.restore();
-  };
+  }, [drawTree, drawCar]);
+  
+  const crashGame: () => void = useCallback(() => {
 
-  const startAutoGame = () => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+
+    drawScene(true);
+
+    setHistory(prev => [
+      { 
+        multiplier: multiplierRef.current.toFixed(2), 
+        result: 'crash',
+        winnings: 0
+      },
+      ...prev.slice(0, 4)
+    ]);
+
+    setShowRestartAlert(true);
+  }, [drawScene]);
+
+  // Memoize start auto game function
+  const startAutoGame = useCallback(() => {
     if (balance < betAmount) {
       alert("Insufficient balance!");
       return;
     }
-
+  
     setGameState('driving');
     setMultiplier(1);
     multiplierRef.current = 1;
     carPositionRef.current = 0;
     setShowRestartAlert(false);
-
+  
     // Randomize crash point between 1 and 10
     crashPointRef.current = 1 + Math.random() * 9;
-
+  
     // Deduct bet amount
     setBalance(prev => prev - betAmount);
-
+  
     const animate = () => {
       const currentMultiplier = multiplierRef.current;
       let increment = 0;
-
+  
       if (currentMultiplier < 10) {
         increment = 1 / 60; // Approx 1 second to increment by 1
       } else {
         increment = 1 / 30; // Twice as fast once multiplier exceeds 10
       }
-
+  
       carPositionRef.current += increment * 100; // Adjust car speed proportionally
       multiplierRef.current += increment;
       setMultiplier(Number(multiplierRef.current.toFixed(2)));
-
+  
       drawScene();
-
+  
       if (multiplierRef.current >= crashPointRef.current) {
         crashGame();
         return;
       }
-
+  
       animationFrameRef.current = requestAnimationFrame(animate);
     };
-
+  
     animationFrameRef.current = requestAnimationFrame(animate);
-  };
+  }, [balance, betAmount, drawScene, crashGame]);
 
-  const handleCashOut = () => {
+
+  // Memoize cash out function
+  const handleCashOut = useCallback(() => {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
     }
@@ -232,31 +230,66 @@ const CarMultiplierGame: React.FC = () => {
 
     setShowRestartAlert(true);
     setTimeout(startAutoGame, 1500);
-  };
+  }, [betAmount, multiplier, startAutoGame]);
 
-  const crashGame = () => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
+  // Memoize tree initialization
+  const initializeTrees = useCallback(() => {
+    const trees: { x: number, y: number, width: number, height: number }[] = [];
+    for (let i = 0; i < 20; i++) {
+      trees.push({
+        x: Math.random() * 800,
+        y: 300 + Math.random() * 200,
+        width: 30 + Math.random() * 50,
+        height: 100 + Math.random() * 100
+      });
     }
+    treesRef.current = trees;
+  }, []);
 
-    drawScene(true);
+  // Canvas initialization effect
+  useEffect(() => {
+    const canvas = canvasRef.current;
+  
+    if (!canvas) {
+      console.warn('Canvas reference is not available.');
+      return;
+    }
+  
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      console.warn('Failed to get canvas 2D context.');
+      return;
+    }
+  
+    // Dynamically set canvas dimensions based on its container
+    const container = canvas.parentElement;
+    if (container) {
+      const { width, height } = container.getBoundingClientRect();
+      canvas.width = width;
+      canvas.height = height;
+    } else {
+      console.warn('Canvas container not found. Using default dimensions.');
+      canvas.width = 800;
+      canvas.height = 600;
+    }
+  
+    // Store the context reference
+    roadRef.current = ctx;
+  
+    // Initialize trees and draw the scene
+    initializeTrees();
+    drawScene();
+  
+    return () => {
+      // Cleanup logic if needed
+      roadRef.current = null;
+    };
+  }, [canvasRef, initializeTrees, drawScene]);
 
-    setHistory(prev => [
-      { 
-        multiplier: multiplierRef.current.toFixed(2), 
-        result: 'crash',
-        winnings: 0
-      },
-      ...prev.slice(0, 4)
-    ]);
-
-    setShowRestartAlert(true);
-    setTimeout(startAutoGame, 1500);
-  };
-
+  // Auto start game on mount
   useEffect(() => {
     startAutoGame();
-  }, []);
+  }, [startAutoGame]);
 
   return (
     <div className="bg-gradient-to-br from-blue-900 to-indigo-800 min-h-screen flex flex-col p-4">
