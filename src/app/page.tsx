@@ -1,394 +1,321 @@
-'use client'
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Car, Coins, AlertTriangle } from 'lucide-react';
-
-// Define types for game history and state
-type GameHistoryEntry = {
-  multiplier: string;
-  result: 'cash_out' | 'crash';
-  winnings: number;
-};
-
-type GameState = 'betting' | 'driving' | 'crashed';
+"use client";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Car, Coins, AlertTriangle } from "lucide-react";
 
 const CarMultiplierGame: React.FC = () => {
   const [balance, setBalance] = useState<number>(1000);
   const [betAmount, setBetAmount] = useState<number>(10);
   const [autoCashOut, setAutoCashOut] = useState<number>(2);
   const [multiplier, setMultiplier] = useState<number>(1);
-  const [gameState, setGameState] = useState<GameState>('betting');
-  const [history, setHistory] = useState<GameHistoryEntry[]>([]);
+  const [gameState, setGameState] = useState<"betting" | "driving" | "crashed">("driving");
+  const [history, setHistory] = useState<{ multiplier: string; result: string; winnings: number }[]>([]);
   const [showRestartAlert, setShowRestartAlert] = useState<boolean>(false);
+  const [hasPlacedBet, setHasPlacedBet] = useState<boolean>(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number | null>(null);
   const multiplierRef = useRef<number>(1);
   const crashPointRef = useRef<number>(0);
   const carPositionRef = useRef<number>(0);
-  const roadRef = useRef<CanvasRenderingContext2D | null>(null);
-  const treesRef = useRef<{ x: number, y: number, width: number, height: number }[]>([]);
+  const cloudPositionsRef = useRef<{x: number, y: number}[]>([]);
+  const mountainPositionsRef = useRef<{x: number, height: number}[]>([]);
 
-  // Memoize tree drawing function
-  const drawTree = useCallback((ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number) => {
-    // Trunk
-    ctx.fillStyle = '#5D4037';
-    ctx.fillRect(x + width * 0.4, y + height, width * 0.2, height * 0.2);
+  const initializeScene = useCallback(() => {
+    // Initialize clouds
+    cloudPositionsRef.current = Array(5).fill(0).map(() => ({
+      x: Math.random() * 800,
+      y: Math.random() * 100 + 20
+    }));
 
-    // Foliage
-    ctx.fillStyle = '#2E7D32';
+    // Initialize mountains
+    mountainPositionsRef.current = Array(3).fill(0).map(() => ({
+      x: Math.random() * 800,
+      height: Math.random() * 100 + 50
+    }));
+  }, []);
+
+  const drawCloud = useCallback((ctx: CanvasRenderingContext2D, x: number, y: number) => {
+    ctx.fillStyle = "#FFFFFF";
     ctx.beginPath();
-    ctx.moveTo(x, y + height);
-    ctx.lineTo(x + width / 2, y);
-    ctx.lineTo(x + width, y + height);
-    ctx.closePath();
+    ctx.arc(x, y, 20, 0, Math.PI * 2);
+    ctx.arc(x + 15, y - 10, 15, 0, Math.PI * 2);
+    ctx.arc(x + 15, y + 10, 15, 0, Math.PI * 2);
+    ctx.arc(x + 30, y, 20, 0, Math.PI * 2);
     ctx.fill();
   }, []);
 
-  // Memoize car drawing function
-  const drawCar = useCallback((ctx: CanvasRenderingContext2D, x: number, y: number) => {
+  const drawMountain = useCallback((ctx: CanvasRenderingContext2D, x: number, height: number) => {
+    ctx.fillStyle = "#4A5568";
+    ctx.beginPath();
+    ctx.moveTo(x, ctx.canvas.height - 50);
+    ctx.lineTo(x + 100, ctx.canvas.height - height - 50);
+    ctx.lineTo(x + 200, ctx.canvas.height - 50);
+    ctx.fill();
+
+    // Snow cap
+    ctx.fillStyle = "#FFFFFF";
+    ctx.beginPath();
+    ctx.moveTo(x + 85, ctx.canvas.height - height - 40);
+    ctx.lineTo(x + 100, ctx.canvas.height - height - 50);
+    ctx.lineTo(x + 115, ctx.canvas.height - height - 40);
+    ctx.fill();
+  }, []);
+
+  const drawCar = useCallback((ctx: CanvasRenderingContext2D, x: number, isCrashed: boolean) => {
     // Car body
-    ctx.fillStyle = '#E53935';
+    ctx.fillStyle = isCrashed ? "#FF0000" : "#E53935";
     ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x + 50, y);
-    ctx.lineTo(x + 45, y - 20);
-    ctx.lineTo(x + 5, y - 20);
+    ctx.moveTo(x, ctx.canvas.height - 75);
+    ctx.lineTo(x + 50, ctx.canvas.height - 75);
+    ctx.lineTo(x + 45, ctx.canvas.height - 85);
+    ctx.lineTo(x + 10, ctx.canvas.height - 85);
     ctx.closePath();
     ctx.fill();
 
-    // Windshield
-    ctx.fillStyle = '#B0BEC5';
+    // Car base
+    ctx.fillStyle = isCrashed ? "#CC0000" : "#C62828";
+    ctx.fillRect(x + 5, ctx.canvas.height - 75, 40, 25);
+
+    // Windows
+    ctx.fillStyle = "#87CEEB";
+    ctx.fillRect(x + 15, ctx.canvas.height - 83, 20, 8);
+
+    // Wheels with suspension animation
+    const bounceOffset = Math.sin(Date.now() / 100) * 2;
+    ctx.fillStyle = "#000000";
     ctx.beginPath();
-    ctx.moveTo(x + 10, y - 20);
-    ctx.lineTo(x + 40, y - 20);
-    ctx.lineTo(x + 35, y - 30);
-    ctx.lineTo(x + 15, y - 30);
-    ctx.closePath();
+    ctx.arc(x + 15, ctx.canvas.height - 50 + bounceOffset, 8, 0, Math.PI * 2);
+    ctx.arc(x + 35, ctx.canvas.height - 50 + bounceOffset, 8, 0, Math.PI * 2);
     ctx.fill();
 
-    // Wheels
-    ctx.fillStyle = '#212121';
+    // Wheel rims
+    ctx.fillStyle = "#FFFFFF";
     ctx.beginPath();
-    ctx.arc(x + 10, y + 5, 5, 0, Math.PI * 2);
-    ctx.arc(x + 40, y + 5, 5, 0, Math.PI * 2);
+    ctx.arc(x + 15, ctx.canvas.height - 50 + bounceOffset, 3, 0, Math.PI * 2);
+    ctx.arc(x + 35, ctx.canvas.height - 50 + bounceOffset, 3, 0, Math.PI * 2);
     ctx.fill();
   }, []);
 
-  // Memoize scene drawing function
-  const drawScene = useCallback((crashed = false) => {
-    const ctx = roadRef.current;
+  const drawScene = useCallback((isCrashed = false) => {
     const canvas = canvasRef.current;
-    if (!ctx || !canvas) return;
+    if (!canvas) return;
 
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Sky gradient
-    const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height / 2);
-    skyGradient.addColorStop(0, '#87CEEB');
-    skyGradient.addColorStop(1, '#E0F6FF');
-    ctx.fillStyle = skyGradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height / 2);
+    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height - 50);
+    gradient.addColorStop(0, "#87CEEB");
+    gradient.addColorStop(1, "#E0F7FA");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height - 50);
 
-    // Draw trees with parallax effect
-    treesRef.current.forEach(tree => {
-      const parallaxOffset = carPositionRef.current * 0.1;
-      drawTree(
-        ctx, 
-        (tree.x - parallaxOffset) % canvas.width, 
-        tree.y, 
-        tree.width, 
-        tree.height
-      );
-      
-      // Draw additional trees for continuous background
-      drawTree(
-        ctx, 
-        (tree.x - parallaxOffset + canvas.width) % canvas.width, 
-        tree.y, 
-        tree.width, 
-        tree.height
-      );
+    // Draw mountains
+    mountainPositionsRef.current.forEach(mountain => {
+      drawMountain(ctx, mountain.x, mountain.height);
     });
 
-    // Ground gradient
-    const groundGradient = ctx.createLinearGradient(0, canvas.height / 2, 0, canvas.height);
-    groundGradient.addColorStop(0, '#90EE90');
-    groundGradient.addColorStop(1, '#228B22');
-    ctx.fillStyle = groundGradient;
-    ctx.fillRect(0, canvas.height / 2, canvas.width, canvas.height / 2);
+    // Animate and draw clouds
+    cloudPositionsRef.current.forEach(cloud => {
+      cloud.x -= 0.5;
+      if (cloud.x < -50) cloud.x = canvas.width + 50;
+      drawCloud(ctx, cloud.x, cloud.y);
+    });
 
     // Road
-    ctx.fillStyle = '#444';
-    ctx.fillRect(0, canvas.height * 0.7, canvas.width, canvas.height * 0.3);
+    ctx.fillStyle = "#4A4A4A";
+    ctx.fillRect(0, canvas.height - 50, canvas.width, 50);
 
-    // Road lane
-    ctx.strokeStyle = 'white';
-    ctx.setLineDash([50, 30]);
+    // Road markings
+    ctx.strokeStyle = "#FFFFFF";
+    ctx.setLineDash([20, 20]);
     ctx.beginPath();
-    ctx.moveTo(canvas.width / 2, canvas.height * 0.7);
-    ctx.lineTo(canvas.width / 2, canvas.height);
+    ctx.moveTo(0, canvas.height - 25);
+    ctx.lineTo(canvas.width, canvas.height - 25);
     ctx.stroke();
+    ctx.setLineDash([]);
 
     // Draw car
-    ctx.save();
-    if (crashed) {
-      ctx.translate(canvas.width / 2, canvas.height - 100 - carPositionRef.current);
-      ctx.rotate(Math.PI / 4);
-      drawCar(ctx, -25, 0);
-    } else {
-      drawCar(ctx, canvas.width / 2 - 25, canvas.height - 100 - carPositionRef.current);
-    }
-    ctx.restore();
-  }, [drawTree, drawCar]);
-  
-  const crashGame: () => void = useCallback(() => {
+    drawCar(ctx, carPositionRef.current, isCrashed);
 
+    // Speed lines when moving fast
+    if (multiplierRef.current > 2 && !isCrashed) {
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 5; i++) {
+        const lineX = carPositionRef.current - (i * 20);
+        if (lineX > 0) {
+          ctx.beginPath();
+          ctx.moveTo(lineX, canvas.height - 70);
+          ctx.lineTo(lineX - 20, canvas.height - 70);
+          ctx.stroke();
+        }
+      }
+    }
+
+  }, [drawCloud, drawMountain, drawCar]);
+
+  // Rest of the component logic remains the same...
+  const startGame = useCallback(() => {
+    setGameState("driving");
+    setMultiplier(1);
+    multiplierRef.current = 1;
+    carPositionRef.current = 0;
+    initializeScene();
+
+    crashPointRef.current = 1 + Math.random() * 9;
+
+    const animate = () => {
+      const currentMultiplier = multiplierRef.current;
+      const increment = currentMultiplier < 10 ? 1 / 60 : 1 / 30;
+
+      carPositionRef.current += increment * 100;
+      multiplierRef.current += increment;
+      setMultiplier(Number(multiplierRef.current.toFixed(2)));
+
+      drawScene();
+
+      if (multiplierRef.current >= crashPointRef.current) {
+        crashGame();
+        return;
+      }
+
+      animationFrameRef.current = requestAnimationFrame(animate);
+    };
+
+    animationFrameRef.current = requestAnimationFrame(animate);
+  }, [drawScene, initializeScene]);
+
+  const crashGame = useCallback(() => {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
     }
 
     drawScene(true);
 
-    setHistory(prev => [
-      { 
-        multiplier: multiplierRef.current.toFixed(2), 
-        result: 'crash',
-        winnings: 0
+    setHistory((prev) => [
+      {
+        multiplier: multiplierRef.current.toFixed(2),
+        result: "crash",
+        winnings: 0,
       },
-      ...prev.slice(0, 4)
+      ...prev.slice(0, 4),
     ]);
 
+    setGameState("crashed");
     setShowRestartAlert(true);
-  }, [drawScene]);
 
-  // Memoize start auto game function
-  const startAutoGame = useCallback(() => {
+    setTimeout(() => {
+      setShowRestartAlert(false);
+      startGame();
+    }, 3000);
+  }, [drawScene, startGame]);
+
+  const placeBet = useCallback(() => {
     if (balance < betAmount) {
       alert("Insufficient balance!");
       return;
     }
-  
-    setGameState('driving');
-    setMultiplier(1);
-    multiplierRef.current = 1;
-    carPositionRef.current = 0;
-    setShowRestartAlert(false);
-  
-    // Randomize crash point between 1 and 10
-    crashPointRef.current = 1 + Math.random() * 9;
-  
-    // Deduct bet amount
-    setBalance(prev => prev - betAmount);
-  
-    const animate = () => {
-      const currentMultiplier = multiplierRef.current;
-      let increment = 0;
-  
-      if (currentMultiplier < 10) {
-        increment = 1 / 60; // Approx 1 second to increment by 1
-      } else {
-        increment = 1 / 30; // Twice as fast once multiplier exceeds 10
-      }
-  
-      carPositionRef.current += increment * 100; // Adjust car speed proportionally
-      multiplierRef.current += increment;
-      setMultiplier(Number(multiplierRef.current.toFixed(2)));
-  
-      drawScene();
-  
-      if (multiplierRef.current >= crashPointRef.current) {
-        crashGame();
-        return;
-      }
-  
-      animationFrameRef.current = requestAnimationFrame(animate);
-    };
-  
-    animationFrameRef.current = requestAnimationFrame(animate);
-  }, [balance, betAmount, drawScene, crashGame]);
 
+    setBalance((prev) => prev - betAmount);
+    setHasPlacedBet(true);
+  }, [balance, betAmount]);
 
-  // Memoize cash out function
   const handleCashOut = useCallback(() => {
+    if (!hasPlacedBet) return;
+
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
     }
 
-    // Calculate winnings
     const winnings = betAmount * multiplier;
-    setBalance(prev => prev + winnings);
+    setBalance((prev) => prev + winnings);
 
-    // Update game history
-    setHistory(prev => [
-      { 
-        multiplier: multiplierRef.current.toFixed(2), 
-        result: 'cash_out',
-        winnings
+    setHistory((prev) => [
+      {
+        multiplier: multiplierRef.current.toFixed(2),
+        result: "cash_out",
+        winnings,
       },
-      ...prev.slice(0, 4)
+      ...prev.slice(0, 4),
     ]);
 
-    setShowRestartAlert(true);
-    setTimeout(startAutoGame, 1500);
-  }, [betAmount, multiplier, startAutoGame]);
+    setHasPlacedBet(false);
+    startGame();
+  }, [betAmount, multiplier, hasPlacedBet, startGame]);
 
-  // Memoize tree initialization
-  const initializeTrees = useCallback(() => {
-    const trees: { x: number, y: number, width: number, height: number }[] = [];
-    for (let i = 0; i < 20; i++) {
-      trees.push({
-        x: Math.random() * 800,
-        y: 300 + Math.random() * 200,
-        width: 30 + Math.random() * 50,
-        height: 100 + Math.random() * 100
-      });
-    }
-    treesRef.current = trees;
-  }, []);
-
-  // Canvas initialization effect
   useEffect(() => {
-    const canvas = canvasRef.current;
-  
-    if (!canvas) {
-      console.warn('Canvas reference is not available.');
-      return;
-    }
-  
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      console.warn('Failed to get canvas 2D context.');
-      return;
-    }
-  
-    // Dynamically set canvas dimensions based on its container
-    const container = canvas.parentElement;
-    if (container) {
-      const { width, height } = container.getBoundingClientRect();
-      canvas.width = width;
-      canvas.height = height;
-    } else {
-      console.warn('Canvas container not found. Using default dimensions.');
-      canvas.width = 800;
-      canvas.height = 600;
-    }
-  
-    // Store the context reference
-    roadRef.current = ctx;
-  
-    // Initialize trees and draw the scene
-    initializeTrees();
-    drawScene();
-  
+    startGame();
     return () => {
-      // Cleanup logic if needed
-      roadRef.current = null;
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [canvasRef, initializeTrees, drawScene]);
-
-  // Auto start game on mount
-  useEffect(() => {
-    startAutoGame();
-  }, [startAutoGame]);
+  }, [startGame]);
 
   return (
-    <div className="bg-gradient-to-br from-blue-900 to-indigo-800 min-h-screen flex flex-col p-4">
-      <canvas ref={canvasRef} className="w-full h-64 bg-gray-200 mb-4 rounded-lg shadow-lg" />
-      
-      <div className="bg-white/10 rounded-lg p-4 text-white">
-        <div className="flex justify-between items-center mb-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 to-indigo-800 p-4">
+      <canvas
+        ref={canvasRef}
+        className="w-full h-64 mb-4 rounded-lg bg-gray-200"
+        width={800}
+        height={300}
+      />
+      <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 text-white">
+        <div className="flex justify-between mb-4">
           <div className="flex items-center space-x-2">
-            <Coins className="w-6 h-6 text-yellow-400" />
-            <span className="text-lg font-semibold">
-              Balance: ${balance.toFixed(2)}
-            </span>
+            <Coins className="text-yellow-400 w-6 h-6" />
+            <span>Balance: ${balance.toFixed(2)}</span>
           </div>
           <div className="flex items-center space-x-2">
-            <Car className="w-6 h-6 text-green-400" />
-            <span className="text-lg font-semibold">
-              Multiplier: {multiplier.toFixed(2)}x
-            </span>
+            <Car className="text-green-400 w-6 h-6" />
+            <span>Multiplier: {multiplier.toFixed(2)}x</span>
           </div>
         </div>
-
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-2">
-              Bet Amount
-            </label>
-            <input 
-              type="number" 
+            <label className="block mb-2">Bet Amount</label>
+            <input
+              type="number"
               value={betAmount}
               onChange={(e) => setBetAmount(Number(e.target.value))}
-              className="w-full bg-white/20 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              min="1"
-              max={balance}
+              className="w-full px-3 py-2 rounded-md bg-white/20 text-white placeholder-white/50"
+              placeholder="Enter bet amount"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-2">
-              Auto Cash Out
-            </label>
-            <input 
-              type="number" 
+            <label className="block mb-2">Auto Cash Out</label>
+            <input
+              type="number"
               value={autoCashOut}
               onChange={(e) => setAutoCashOut(Number(e.target.value))}
-              className="w-full bg-white/20 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              min="1"
-              step="0.1"
+              className="w-full px-3 py-2 rounded-md bg-white/20 text-white placeholder-white/50"
+              placeholder="Enter auto cash out"
             />
           </div>
         </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-4">
-          <button 
-            onClick={startAutoGame}
-            className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300 flex items-center justify-center space-x-2"
+        <div className="mt-4 flex gap-4">
+          <button
+            onClick={placeBet}
+            className="bg-green-500 hover:bg-green-600 transition-colors text-white px-6 py-2 rounded-lg font-medium"
           >
-            <Car className="w-5 h-5" />
-            <span>Start Game</span>
+            Place Bet
           </button>
-          <button 
+          <button
             onClick={handleCashOut}
-            disabled={gameState !== 'driving'}
-            className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+            disabled={gameState !== "driving"}
+            className="bg-blue-500 hover:bg-blue-600 transition-colors text-white px-6 py-2 rounded-lg font-medium disabled:opacity-50 disabled:hover:bg-blue-500"
           >
-            <Coins className="w-5 h-5" />
-            <span>Cash Out</span>
+            Cash Out
           </button>
         </div>
-
         {showRestartAlert && (
-          <div className="mt-4 bg-yellow-500/20 border border-yellow-500 rounded-lg p-3 flex items-center space-x-2">
-            <AlertTriangle className="w-6 h-6 text-yellow-500" />
-            <span className="text-yellow-500">
-              Game Over! Restarting automatically...
-            </span>
+          <div className="mt-4 p-3 bg-yellow-500/20 rounded-lg flex items-center space-x-2">
+            <AlertTriangle className="text-yellow-500 w-6 h-6" />
+            <span>Game Over! Restarting...</span>
           </div>
         )}
-
-        <div className="mt-4">
-          <h3 className="text-lg font-semibold mb-2">Game History</h3>
-          <div className="space-y-2">
-            {history.map((entry, index) => (
-              <div 
-                key={index} 
-                className={`flex justify-between p-2 rounded-md ${
-                  entry.result === 'crash' 
-                    ? 'bg-red-500/20 text-red-300' 
-                    : 'bg-green-500/20 text-green-300'
-                }`}
-              >
-                <span>Multiplier: {entry.multiplier}x</span>
-                <span>
-                  {entry.result === 'crash' 
-                    ? 'Crashed' 
-                    : `Won $${entry.winnings.toFixed(2)}`}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );
