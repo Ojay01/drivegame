@@ -316,6 +316,18 @@ const CarMultiplierGame: React.FC = () => {
             <span>Game Over! Restarting...</span>
           </div>
         )}
+        <div className="mt-6">
+          <h2 className="text-lg font-bold mb-2">Game History</h2>
+          <ul className="space-y-2">
+            {history.map((entry, index) => (
+              <li key={index} className="bg-white/10 p-3 rounded-lg">
+                <span className="font-medium">Multiplier:</span> {entry.multiplier}x,{" "}
+                <span className="font-medium">Result:</span> {entry.result},{" "}
+                <span className="font-medium">Winnings:</span> ${entry.winnings.toFixed(2)}
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </div>
   );
