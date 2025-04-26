@@ -2,6 +2,8 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Car, Coins, AlertTriangle } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
+import CarSVG from "@/components/car";
+
 
 const CarMultiplierGame: React.FC = () => {
   const [balance, setBalance] = useState<number>(1000);
@@ -76,44 +78,6 @@ const CarMultiplierGame: React.FC = () => {
     []
   );
 
-  const drawCar = useCallback(
-    (ctx: CanvasRenderingContext2D, x: number, isCrashed: boolean) => {
-      // Car body
-      ctx.fillStyle = isCrashed ? "#FF0000" : "#E53935";
-      ctx.beginPath();
-      ctx.moveTo(x, ctx.canvas.height - 75);
-      ctx.lineTo(x + 50, ctx.canvas.height - 75);
-      ctx.lineTo(x + 45, ctx.canvas.height - 85);
-      ctx.lineTo(x + 10, ctx.canvas.height - 85);
-      ctx.closePath();
-      ctx.fill();
-
-      // Car base
-      ctx.fillStyle = isCrashed ? "#CC0000" : "#C62828";
-      ctx.fillRect(x + 5, ctx.canvas.height - 75, 40, 25);
-
-      // Windows
-      ctx.fillStyle = "#87CEEB";
-      ctx.fillRect(x + 15, ctx.canvas.height - 83, 20, 8);
-
-      // Wheels with suspension animation
-      const bounceOffset = Math.sin(Date.now() / 100) * 2;
-      ctx.fillStyle = "#000000";
-      ctx.beginPath();
-      ctx.arc(x + 15, ctx.canvas.height - 50 + bounceOffset, 8, 0, Math.PI * 2);
-      ctx.arc(x + 35, ctx.canvas.height - 50 + bounceOffset, 8, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Wheel rims
-      ctx.fillStyle = "#FFFFFF";
-      ctx.beginPath();
-      ctx.arc(x + 15, ctx.canvas.height - 50 + bounceOffset, 3, 0, Math.PI * 2);
-      ctx.arc(x + 35, ctx.canvas.height - 50 + bounceOffset, 3, 0, Math.PI * 2);
-      ctx.fill();
-    },
-    []
-  );
-
   const drawScene = useCallback(
     (isCrashed = false) => {
       const canvas = canvasRef.current;
@@ -157,9 +121,6 @@ const CarMultiplierGame: React.FC = () => {
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Draw car
-      drawCar(ctx, carPositionRef.current, isCrashed);
-
       // Speed lines when moving fast
       if (multiplierRef.current > 2 && !isCrashed) {
         ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
@@ -175,7 +136,7 @@ const CarMultiplierGame: React.FC = () => {
         }
       }
     },
-    [drawCloud, drawMountain, drawCar]
+    [drawCloud, drawMountain]
   );
 
   const showNotification = (
@@ -352,12 +313,16 @@ const handleCashOut = useCallback(() => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 to-indigo-800 p-4">
       <Toaster />
-      <canvas
-        ref={canvasRef}
-        className="w-full h-64 mb-4 rounded-lg bg-gray-200"
-        width={800}
-        height={300}
-      />
+      <div className="relative w-full h-64 mb-4 rounded-lg">
+        <canvas
+          ref={canvasRef}
+          className="w-full h-full rounded-lg bg-gray-200"
+          width={800}
+          height={300}
+        />
+        <CarSVG animationType='rotate' animationDuration={25} animate={true} />
+      </div>
+
       <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 text-white">
         <div className="flex justify-between mb-4">
           <div className="flex items-center space-x-2">
@@ -432,6 +397,8 @@ const handleCashOut = useCallback(() => {
           </ul>
         </div>
       </div>
+
+
     </div>
   );
 };
