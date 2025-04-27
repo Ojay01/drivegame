@@ -23,7 +23,7 @@ const CarSVG = ({
         
         if (animationType === 'rotate') {
             return {
-                transform: 'perspective(100px) rotateX(20deg) rotateY(30deg)',
+                transform: ' rotateX(50deg) rotateY(50deg)',
             };
         }
         

@@ -27,8 +27,8 @@ const GameContent: React.FC = () => {
       {/* Header */}
       <header className="bg-gray-800 py-4 px-6 flex justify-between items-center">
         <div className="flex items-center">
-          <Menu className="mr-3" size={24} />
-          <h1 className="text-xl font-bold">Car Multiplier</h1>
+          {/* <Menu className="mr-3" size={24} /> */}
+          <h1 className="text-xl font-bold">1xDrives</h1>
         </div>
         <div className="flex items-center bg-gray-900 py-2 px-4 rounded-lg">
           <Wallet className="mr-2 text-green-400" size={18} />

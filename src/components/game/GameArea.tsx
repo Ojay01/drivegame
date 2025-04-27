@@ -1,8 +1,16 @@
 "use client";
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { Gauge, Flame, TrendingUp } from "lucide-react";
 import CarSVG from "@/components/car";
 import { useGameContext } from "./GameContext";
+
+// Sound URLs - replace these with your actual sound URLs
+const SOUND_URLS = {
+  betting: "https://cdn.freesound.org/previews/555/555389_5674468-lq.mp3", // UI ready sound
+  driving: "/sounds/driving.mp3", // Engine revving sound
+  crashed: "/sounds/crash.wav", // Crash sound
+  cashout: "https://cdn.freesound.org/previews/511/511484_4931062-lq.mp3" // Cash register sound
+};
 
 const GameArea: React.FC = () => {
   const {
@@ -15,6 +23,70 @@ const GameArea: React.FC = () => {
   
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const roadRef = useRef<HTMLDivElement>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Sound refs
+  const bettingSoundRef = useRef<HTMLAudioElement | null>(null);
+  const drivingSoundRef = useRef<HTMLAudioElement | null>(null);
+  const crashedSoundRef = useRef<HTMLAudioElement | null>(null);
+  const cashoutSoundRef = useRef<HTMLAudioElement | null>(null);
+  const [soundsLoaded, setSoundsLoaded] = useState(false);
+  
+  // Initialize sound objects
+  useEffect(() => {
+    // Create audio elements
+    bettingSoundRef.current = new Audio(SOUND_URLS.betting);
+    drivingSoundRef.current = new Audio(SOUND_URLS.driving);
+    crashedSoundRef.current = new Audio(SOUND_URLS.crashed);
+    cashoutSoundRef.current = new Audio(SOUND_URLS.cashout);
+    
+    // Configure sounds
+    if (drivingSoundRef.current) {
+      drivingSoundRef.current.loop = true;
+    }
+    
+    // Mark sounds as loaded
+    setSoundsLoaded(true);
+    
+    // Cleanup function
+    return () => {
+      [bettingSoundRef, drivingSoundRef, crashedSoundRef, cashoutSoundRef].forEach(ref => {
+        if (ref.current) {
+          ref.current.pause();
+          ref.current.currentTime = 0;
+        }
+      });
+    };
+  }, []);
+  
+  // Play sounds based on game state changes
+  useEffect(() => {
+    if (!soundsLoaded) return;
+    
+    // Stop all sounds first
+    [bettingSoundRef, drivingSoundRef, crashedSoundRef].forEach(ref => {
+      if (ref.current) {
+        ref.current.pause();
+        ref.current.currentTime = 0;
+      }
+    });
+    
+    // Play the appropriate sound based on game state
+    if (gameState === "betting" && bettingSoundRef.current) {
+      bettingSoundRef.current.play().catch(e => console.log("Sound play error:", e));
+    } else if (gameState === "driving" && drivingSoundRef.current) {
+      drivingSoundRef.current.play().catch(e => console.log("Sound play error:", e));
+    } else if (gameState === "crashed" && crashedSoundRef.current) {
+      crashedSoundRef.current.play().catch(e => console.log("Sound play error:", e));
+    }
+  }, [gameState, soundsLoaded]);
+  
+  // Play cashout sound when user manually cashes out
+  const playCashoutSound = () => {
+    if (cashoutSoundRef.current) {
+      cashoutSoundRef.current.play().catch(e => console.log("Sound play error:", e));
+    }
+  };
   
   // Control road animation based on game state
   useEffect(() => {
@@ -28,11 +100,50 @@ const GameArea: React.FC = () => {
     }
   }, [gameState]);
 
+  // Handle initial state synchronization
+  useEffect(() => {
+    // Mark component as initialized once data is received
+    if (multiplier > 1 && !isInitialized) {
+      setIsInitialized(true);
+    }
+  }, [multiplier, isInitialized]);
+
+  // Calculate car position based on game state and multiplier
+  const getCarPosition = () => {
+    if (gameState === "betting") {
+      return "1%"; // Starting position
+    } else if (gameState === "driving") {
+      // Move from starting position to center as multiplier increases
+      // Cap at 50% (center) so it doesn't go off-screen
+      const progressPercentage = Math.min((multiplier - 1) * 10, 40);
+      return `${10 + progressPercentage}%`;
+    } else if (gameState === "crashed") {
+      return "50%"; // Centered position when crashed
+    }
+    return "1%"; // Default position
+  };
+
   return (
     <div 
       ref={gameAreaRef}
       className="w-full h-72 rounded-lg relative overflow-hidden mb-4 bg-gradient-to-b from-indigo-900 via-blue-800 to-blue-900 shadow-lg"
     >
+      {/* Sound control button */}
+      <button 
+        className="absolute top-4 left-4 z-20 p-2 rounded-full bg-gray-800 bg-opacity-70 text-white"
+        onClick={() => {
+          // Toggle mute all sounds
+          [bettingSoundRef, drivingSoundRef, crashedSoundRef, cashoutSoundRef].forEach(ref => {
+            if (ref.current) {
+              ref.current.muted = !ref.current.muted;
+            }
+          });
+        }}
+      >
+        {/* Sound on/off icon - you can replace with an actual icon */}
+        🔊
+      </button>
+
       {/* Sky with moving clouds when driving */}
       <div className="absolute inset-0 z-0">
         <div className={`absolute inset-0 bg-gradient-to-b from-indigo-900 via-blue-800 to-blue-900`} />
@@ -108,36 +219,45 @@ const GameArea: React.FC = () => {
       
       {/* Game Status */}
       {gameState === "crashed" && (
-        <div className="absolute top-4 left-4 z-10 bg-red-900 bg-opacity-80 px-4 py-2 rounded-lg animate-pulse flex items-center">
+        <div className="absolute top-4 left-16 z-10 bg-red-900 bg-opacity-80 px-4 py-2 rounded-lg animate-pulse flex items-center">
           <Flame className="mr-2 text-red-400" size={18} />
-          <span className="font-bold text-red-100">CRASHED</span>
         </div>
       )}
       
       {gameState === "driving" && (
-        <div className="absolute top-4 left-4 z-10 bg-green-900 bg-opacity-80 px-4 py-2 rounded-lg flex items-center">
+        <div className="absolute top-4 left-16 z-10 bg-green-900 bg-opacity-80 px-4 py-2 rounded-lg flex items-center">
           <Gauge className="mr-2 text-green-400" size={18} />
-          <span className="font-bold text-green-100">RUNNING</span>
         </div>
       )}
       
       {gameState === "betting" && (
-        <div className="absolute top-4 left-4 z-10 bg-blue-900 bg-opacity-80 px-4 py-2 rounded-lg flex items-center">
+        <div className="absolute top-4 left-16 z-10 bg-blue-900 bg-opacity-80 px-4 py-2 rounded-lg flex items-center">
           <TrendingUp className="mr-2 text-blue-400" size={18} />
-          <span className="font-bold text-blue-100">READY</span>
         </div>
+      )}
+      
+      {/* Cash Out Button - trigger cash sound */}
+      {gameState === "driving" && hasPlacedBet && (
+        <button 
+          className="absolute bottom-4 right-4 z-20 px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg shadow-lg"
+          onClick={() => {
+            playCashoutSound();
+            // Add your actual cash out logic here
+          }}
+        >
+          CASH OUT
+        </button>
       )}
       
       {/* Animated Road */}
       <div className="absolute bottom-0 w-full h-24 bg-gray-800"></div>
       <div 
         ref={roadRef}
-        className={`absolute bottom-12 w-full h-2 flex ${
-          gameState === "driving" ? "animate-road-move" : ""
-        }`}
+        className="absolute bottom-12 w-full h-2 flex"
         style={{
           width: "200%", // Extended width for smooth animation loop
-          left: "0%"
+          left: "0%",
+          animation: gameState === "driving" ? "roadMove 2s linear infinite" : "none"
         }}
       >
         {/* Repeated road segments */}
@@ -149,15 +269,18 @@ const GameArea: React.FC = () => {
         ))}
       </div>
       
-      {/* Car SVG Positioning */}
+      {/* Car SVG Positioning - Modified to handle WebSocket state */}
       <div 
-        className={`absolute transition-all duration-100 ${
-          gameState === "crashed" ? "animate-bounce" : ""
-        }`} 
+        className={`absolute ${gameState === "crashed" ? "animate-bounce" : ""}`} 
         style={{ 
-          left: `${carPosition.x}%`, 
+          left: getCarPosition(),
           bottom: '30px',
-          transform: `rotate(${gameState === "driving" ? '5deg' : '0deg'}) scale(1.2)`
+          transform: `rotate(${gameState === "driving" ? '5deg' : '0deg'}) scale(1.2)`,
+          transformOrigin: "center center",
+          // Skip transition on initial load if already driving
+          transition: (gameState === "driving" && !isInitialized) 
+            ? "none" 
+            : "all 0.5s ease-out"
         }}
       >
         <CarSVG 
@@ -188,6 +311,14 @@ const GameArea: React.FC = () => {
           </div>
         </div>
       )}
+      
+      {/* Add this to your global CSS file or styles */}
+      <style jsx>{`
+        @keyframes roadMove {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+      `}</style>
     </div>
   );
 };
