@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { Toaster, toast } from "react-hot-toast";
+import { Toaster } from "react-hot-toast";
 import { Wallet, Menu } from "lucide-react";
 import { GameProvider, useGameContext } from "./GameContext";
 import GameArea from "./GameArea";

@@ -1,6 +1,7 @@
 "use client";
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { useGameSocket } from "../game/GameSocket";
+import toast from 'react-hot-toast'; // Import toast
 
 // Define types
 export type GameState = "betting" | "driving" | "crashed" | "waiting";
@@ -59,7 +60,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     socketMultiplier, 
     socketGameState, 
     socketHistory, 
-    socketCrashPoint,
+    // socketCrashPoint,
     sendMessage 
   } = useGameSocket();
   
@@ -109,6 +110,53 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ]);
     }
   }, [history.length]);
+
+  // Implement the notification system using toast
+  const showNotification = (
+    message: string,
+    type: "success" | "error" | "info"
+  ) => {
+    switch (type) {
+      case "success":
+        toast.success(message, {
+          duration: 3000,
+          style: {
+            background: '#10B981',
+            color: '#fff',
+          },
+          iconTheme: {
+            primary: '#fff',
+            secondary: '#10B981',
+          },
+        });
+        break;
+      case "error":
+        toast.error(message, {
+          duration: 4000,
+          style: {
+            background: '#EF4444',
+            color: '#fff',
+          },
+          iconTheme: {
+            primary: '#fff',
+            secondary: '#EF4444',
+          },
+        });
+        break;
+      case "info":
+        toast(message, {
+          duration: 2000,
+          icon: '📢',
+          style: {
+            background: '#3B82F6',
+            color: '#fff',
+          },
+        });
+        break;
+      default:
+        toast(message);
+    }
+  };
 
   const placeBet = () => {
     if (gameState === "driving" || gameState === "crashed") {
@@ -210,13 +258,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       handleCashOut();
     }
   }, [gameState, hasPlacedBet, multiplier, autoCashOut]);
-
-  const showNotification = (
-    message: string,
-    type: "success" | "error" | "info"
-  ) => {
-    // This will be implemented in the main component with toast
-  };
 
   return (
     <GameContext.Provider
