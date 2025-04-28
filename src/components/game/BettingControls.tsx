@@ -2,9 +2,12 @@
 import React, { useState, useEffect } from "react";
 import { Minus, Plus, X, ChevronDown, ChevronUp } from "lucide-react";
 import { useGameContext } from "./GameContext";
-import { Bet, BetControlProps } from "@/lib/types/bet";
+import { Bet, BetControlProps, showNotification } from "@/lib/types/bet";
+
+// Create a notification helper function
 
 
+// Modify the BetControl component to disable controls when bet is accepted
 const BetControl: React.FC<BetControlProps> = ({
   bet,
   index,
@@ -18,9 +21,14 @@ const BetControl: React.FC<BetControlProps> = ({
   onActivate,
   canRemove
 }) => {
-  const quickAmounts = [1.00, 2.00, 5.00, 10.00];
+  const quickAmounts = [10.00, 20.00, 50.00, 100.00];
+  
+  // Determine if controls should be disabled
+  const isControlsDisabled = bet.hasPlacedBet || bet.pendingBet;
 
   const updateBetAmount = (change: number): void => {
+    if (isControlsDisabled) return;
+    
     const currentAmount = typeof bet.amount === 'number' ? bet.amount : 0;
     const newAmount = Math.max(0.10, currentAmount + change);
     onUpdate({
@@ -30,6 +38,8 @@ const BetControl: React.FC<BetControlProps> = ({
   };
 
   const setBetAmount = (amount: number): void => {
+    if (isControlsDisabled) return;
+    
     if (amount >= 0.10) {
       onUpdate({
         ...bet,
@@ -39,6 +49,8 @@ const BetControl: React.FC<BetControlProps> = ({
   };
 
   const handleBetAmountInput = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    if (isControlsDisabled) return;
+    
     const value = parseFloat(e.target.value);
     if (!isNaN(value)) {
       setBetAmount(value);
@@ -52,6 +64,8 @@ const BetControl: React.FC<BetControlProps> = ({
   };
 
   const updateAutoCashOut = (change: number): void => {
+    if (isControlsDisabled) return;
+    
     const currentValue = typeof bet.autoCashOut === 'number' ? bet.autoCashOut : 1.10;
     const newValue = Math.max(1.10, currentValue + change);
     onUpdate({
@@ -61,6 +75,8 @@ const BetControl: React.FC<BetControlProps> = ({
   };
 
   const handleAutoCashOutInput = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    if (isControlsDisabled) return;
+    
     const value = parseFloat(e.target.value);
     if (!isNaN(value) && value >= 1.10) {
       onUpdate({
@@ -77,17 +93,33 @@ const BetControl: React.FC<BetControlProps> = ({
   };
 
   const toggleAutoCashOut = (): void => {
+    if (isControlsDisabled) return;
+    
     onUpdate({
       ...bet,
       isAutoCashOutEnabled: !bet.isAutoCashOutEnabled
     });
+    showNotification(
+      !bet.isAutoCashOutEnabled 
+        ? "Auto Cash Out enabled" 
+        : "Auto Cash Out disabled", 
+      "info"
+    );
   };
 
   const toggleAutoBet = (): void => {
+    if (isControlsDisabled) return;
+    
     onUpdate({
       ...bet,
       isAutoBetEnabled: !bet.isAutoBetEnabled
     });
+    showNotification(
+      !bet.isAutoBetEnabled 
+        ? "Auto Bet enabled" 
+        : "Auto Bet disabled", 
+      "info"
+    );
   };
 
   const placeBet = (): void => {
@@ -101,6 +133,7 @@ const BetControl: React.FC<BetControlProps> = ({
         hasPlacedBet: true,
         pendingBet: false
       });
+      showNotification("Bet placed successfully!", "success");
     } 
     // Otherwise, set as pending for next round
     else {
@@ -108,6 +141,7 @@ const BetControl: React.FC<BetControlProps> = ({
         ...bet,
         pendingBet: true
       });
+      showNotification("Bet queued for next round!", "info");
     }
   };
 
@@ -124,6 +158,7 @@ const BetControl: React.FC<BetControlProps> = ({
       pendingBet: false,
       hasPlacedBet: bet.hasPlacedBet && gameState !== "betting" ? true : false
     });
+    showNotification("Bet cancelled!", "info");
   };
 
   const cashOut = (): void => {
@@ -137,6 +172,15 @@ const BetControl: React.FC<BetControlProps> = ({
       // Queue up next bet if auto bet is enabled
       pendingBet: bet.isAutoBetEnabled
     });
+    
+    showNotification(
+      `Cashed out at ${multiplier.toFixed(2)}x! Won ${cashOutAmount.toFixed(2)} XAF`,
+      "success"
+    );
+    
+    if (bet.isAutoBetEnabled) {
+      showNotification("Next bet queued automatically", "info");
+    }
   };
 
   // Determine button state
@@ -205,9 +249,15 @@ const BetControl: React.FC<BetControlProps> = ({
           </button>
           {canRemove && (
             <button 
-              onClick={onRemove}
-              className="text-gray-400 hover:text-red-500"
-               title="Remove bet amount"
+              onClick={() => {
+                if (!isControlsDisabled) {
+                  onRemove();
+                  showNotification("Bet removed", "info");
+                }
+              }}
+              className={`text-gray-400 hover:text-red-500 ${isControlsDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={isControlsDisabled}
+              title="Remove bet amount"
             >
               <X size={16} />
             </button>
@@ -222,7 +272,8 @@ const BetControl: React.FC<BetControlProps> = ({
           <div className="flex items-center">
             <button
               onClick={() => updateBetAmount(-0.1)}
-              className="bg-gray-800 px-2 py-1 rounded-l"
+              className={`bg-gray-800 px-2 py-1 rounded-l ${isControlsDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={isControlsDisabled}
               title="Decrease bet amount"
             >
               <Minus size={12} />
@@ -231,18 +282,20 @@ const BetControl: React.FC<BetControlProps> = ({
               type="text"
               value={typeof bet.amount === 'number' ? bet.amount.toFixed(2) : bet.amount}
               onChange={handleBetAmountInput}
+              disabled={isControlsDisabled}
               onBlur={() => {
-                if (bet.amount === '' || typeof bet.amount !== 'number' || bet.amount < 0.10) {
+                if (!isControlsDisabled && (bet.amount === '' || typeof bet.amount !== 'number' || bet.amount < 0.10)) {
                   setBetAmount(0.10);
                 }
               }}
-              className="bg-gray-800 text-center text-white p-1 w-16 outline-none"
+              className={`bg-gray-800 text-center text-white p-1 w-16 outline-none ${isControlsDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
               placeholder="Enter amount"
             />
             <button
               onClick={() => updateBetAmount(0.1)}
-              className="bg-gray-800 px-2 py-1 rounded-r"
-               title="pdate bet amount"
+              className={`bg-gray-800 px-2 py-1 rounded-r ${isControlsDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={isControlsDisabled}
+              title="Update bet amount"
             >
               <Plus size={12} />
             </button>
@@ -254,8 +307,14 @@ const BetControl: React.FC<BetControlProps> = ({
           {quickAmounts.map((amount) => (
             <button
               key={amount}
-              onClick={() => setBetAmount(amount)}
-              className="bg-gray-800 py-1 text-sm rounded-md"
+              onClick={() => {
+                if (!isControlsDisabled) {
+                  setBetAmount(amount);
+                  showNotification(`Bet amount set to ${amount.toFixed(2)} XAF`, "info");
+                }
+              }}
+              disabled={isControlsDisabled}
+              className={`bg-gray-800 py-1 text-sm rounded-md ${isControlsDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {amount.toFixed(2)}
             </button>
@@ -268,8 +327,8 @@ const BetControl: React.FC<BetControlProps> = ({
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm">Auto Cash Out</span>
           <div 
-            className={`w-12 h-6 rounded-full relative cursor-pointer ${bet.isAutoCashOutEnabled ? "bg-green-500" : "bg-gray-700"}`}
-            onClick={toggleAutoCashOut}
+            className={`w-12 h-6 rounded-full relative ${bet.isAutoCashOutEnabled ? "bg-green-500" : "bg-gray-700"} ${isControlsDisabled ? 'opacity-50' : 'cursor-pointer'}`}
+            onClick={isControlsDisabled ? undefined : toggleAutoCashOut}
           >
             <div className={`absolute w-5 h-5 rounded-full bg-white top-0.5 transition-all ${bet.isAutoCashOutEnabled ? "right-0.5" : "left-0.5"}`}></div>
           </div>
@@ -279,8 +338,9 @@ const BetControl: React.FC<BetControlProps> = ({
           <div className="flex items-center justify-between">
             <button
               onClick={() => updateAutoCashOut(-0.1)}
-              className="bg-gray-800 px-2 py-1 rounded-l"
-               title=" bet amount"
+              className={`bg-gray-800 px-2 py-1 rounded-l ${isControlsDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={isControlsDisabled}
+              title="Decrease auto cash out"
             >
               <Minus size={12} />
             </button>
@@ -288,22 +348,24 @@ const BetControl: React.FC<BetControlProps> = ({
               type="text"
               value={typeof bet.autoCashOut === 'number' ? bet.autoCashOut.toFixed(2) : bet.autoCashOut}
               onChange={handleAutoCashOutInput}
+              disabled={isControlsDisabled}
               onBlur={() => {
-                if (bet.autoCashOut === '' || typeof bet.autoCashOut !== 'number' || bet.autoCashOut < 1.10) {
+                if (!isControlsDisabled && (bet.autoCashOut === '' || typeof bet.autoCashOut !== 'number' || bet.autoCashOut < 1.10)) {
                   onUpdate({
                     ...bet,
                     autoCashOut: 1.10
                   });
                 }
               }}
-              className="bg-gray-800 text-center text-white p-1 w-16 outline-none"
-               placeholder="Enter amount"
+              className={`bg-gray-800 text-center text-white p-1 w-16 outline-none ${isControlsDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              placeholder="Enter amount"
             />
             <div className="bg-gray-800 px-2 py-1">x</div>
             <button
               onClick={() => updateAutoCashOut(0.1)}
-              className="bg-gray-800 px-2 py-1 rounded-r"
-               title=" bet amount"
+              className={`bg-gray-800 px-2 py-1 rounded-r ${isControlsDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={isControlsDisabled}
+              title="Increase auto cash out"
             >
               <Plus size={12} />
             </button>
@@ -316,8 +378,8 @@ const BetControl: React.FC<BetControlProps> = ({
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm">Auto Bet</span>
           <div 
-            className={`w-12 h-6 rounded-full relative cursor-pointer ${bet.isAutoBetEnabled ? "bg-green-500" : "bg-gray-700"}`}
-            onClick={toggleAutoBet}
+            className={`w-12 h-6 rounded-full relative ${bet.isAutoBetEnabled ? "bg-green-500" : "bg-gray-700"} ${isControlsDisabled ? 'opacity-50' : 'cursor-pointer'}`}
+            onClick={isControlsDisabled ? undefined : toggleAutoBet}
           >
             <div className={`absolute w-5 h-5 rounded-full bg-white top-0.5 transition-all ${bet.isAutoBetEnabled ? "right-0.5" : "left-0.5"}`}></div>
           </div>
@@ -376,10 +438,18 @@ const BettingControls: React.FC = () => {
           if (balance >= betAmount) {
             setBalance(prev => prev - betAmount); // Deduct balance
             
+            showNotification(`Pending bet of ${betAmount.toFixed(2)} XAF placed`, "success");
+            
             return {
               ...bet,
               pendingBet: false,
               hasPlacedBet: true
+            };
+          } else {
+            showNotification("Insufficient balance for pending bet!", "error");
+            return {
+              ...bet,
+              pendingBet: false,
             };
           }
         }
@@ -389,10 +459,14 @@ const BettingControls: React.FC = () => {
     }
     
     if (prevGameState === "driving" && gameState === "crashed") {
+      // Show crash notification
+      showNotification("Game crashed!", "error");
+      
       // When game crashes, update all bets - keep pending bets
       const updatedBets = bets.map(bet => {
         // If bet was active and auto bet is enabled, queue a new bet
         if (bet.hasPlacedBet && bet.isAutoBetEnabled) {
+          showNotification("Auto bet queued for next round", "info");
           return {
             ...bet,
             hasPlacedBet: false,
@@ -409,6 +483,16 @@ const BettingControls: React.FC = () => {
         return bet;
       });
       setBets(updatedBets);
+    }
+    
+    // Notify when a new betting round begins
+    if (prevGameState !== "betting" && gameState === "betting") {
+      showNotification("New betting round started", "info");
+    }
+    
+    // Notify when game starts driving
+    if (prevGameState !== "driving" && gameState === "driving") {
+      showNotification("Game started!", "info");
     }
     
     setPrevGameState(gameState);
@@ -430,6 +514,11 @@ const BettingControls: React.FC = () => {
           
           setBalance(prev => prev + cashOutAmount);
           
+          showNotification(
+            `Auto cashed out at ${multiplier.toFixed(2)}x! Won ${cashOutAmount.toFixed(2)} XAF`,
+            "success"
+          );
+          
           const updatedBets = [...bets];
           updatedBets[index] = {
             ...updatedBets[index],
@@ -437,6 +526,11 @@ const BettingControls: React.FC = () => {
             // If auto bet is enabled, queue another bet for the next round
             pendingBet: updatedBets[index].isAutoBetEnabled
           };
+          
+          if (updatedBets[index].isAutoBetEnabled) {
+            showNotification("Auto bet queued for next round", "info");
+          }
+          
           setBets(updatedBets);
         }
       });
@@ -451,11 +545,14 @@ const BettingControls: React.FC = () => {
         autoCashOut: 2.00,
         hasPlacedBet: false,
         pendingBet: false,
-        isAutoCashOutEnabled: true,
+        isAutoCashOutEnabled: false,
         isAutoBetEnabled: false
       };
       setBets([...bets, newBet]);
       setActiveBetIndex(bets.length);
+      showNotification("New bet added", "success");
+    } else {
+      showNotification("Maximum of 4 bets allowed", "error");
     }
   };
 
@@ -504,7 +601,10 @@ const BettingControls: React.FC = () => {
                 setBalance={setBalance}
                 onUpdate={(updatedBet) => updateBet(index, updatedBet)}
                 onRemove={() => removeBet(index)}
-                onActivate={() => setActiveBetIndex(index)}
+                onActivate={() => {
+                  setActiveBetIndex(index);
+                  showNotification(`Bet ${index + 1} is now active`, "info");
+                }}
                 canRemove={bets.length > 1}
               />
             ))}
