@@ -1,6 +1,6 @@
 "use client";
+import { GameHistoryItem, GameState } from "@/lib/types/bet";
 import { useState, useEffect, useCallback } from "react";
-import { GameState, GameHistoryItem } from "./GameContext";
 
 export const useGameEngine = () => {
   const [multiplier, setMultiplier] = useState<number>(1);

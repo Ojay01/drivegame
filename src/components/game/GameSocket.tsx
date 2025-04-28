@@ -1,7 +1,7 @@
 "use client";
+import { GameHistoryItem, GameState } from "@/lib/types/bet";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
-import { GameState, GameHistoryItem } from "./GameContext";
 
 export const useGameSocket = () => {
   const [socketMultiplier, setSocketMultiplier] = useState<number | null>(null);
