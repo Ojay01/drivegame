@@ -47,7 +47,7 @@ const GameContent: React.FC = () => {
 
           {/* History Sidebar */}
           <div className="lg:col-span-1">
-            <GameHistory />
+            {/* <GameHistory /> */}
           </div>
         </div>
       </main>
