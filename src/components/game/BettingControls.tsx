@@ -2,11 +2,9 @@
 import React, { useState, useEffect } from "react";
 import { Minus, Plus, X, ChevronDown, ChevronUp } from "lucide-react";
 import { useGameContext } from "./GameContext";
-import { BetControlProps } from "@/lib/types/bet";
+import { Bet, BetControlProps } from "@/lib/types/bet";
 
-// Types
 
-// Individual Bet Control Component
 const BetControl: React.FC<BetControlProps> = ({
   bet,
   index,
@@ -209,6 +207,7 @@ const BetControl: React.FC<BetControlProps> = ({
             <button 
               onClick={onRemove}
               className="text-gray-400 hover:text-red-500"
+               title="Remove bet amount"
             >
               <X size={16} />
             </button>
@@ -243,6 +242,7 @@ const BetControl: React.FC<BetControlProps> = ({
             <button
               onClick={() => updateBetAmount(0.1)}
               className="bg-gray-800 px-2 py-1 rounded-r"
+               title="pdate bet amount"
             >
               <Plus size={12} />
             </button>
@@ -280,6 +280,7 @@ const BetControl: React.FC<BetControlProps> = ({
             <button
               onClick={() => updateAutoCashOut(-0.1)}
               className="bg-gray-800 px-2 py-1 rounded-l"
+               title=" bet amount"
             >
               <Minus size={12} />
             </button>
@@ -302,6 +303,7 @@ const BetControl: React.FC<BetControlProps> = ({
             <button
               onClick={() => updateAutoCashOut(0.1)}
               className="bg-gray-800 px-2 py-1 rounded-r"
+               title=" bet amount"
             >
               <Plus size={12} />
             </button>
@@ -348,7 +350,7 @@ const BettingControls: React.FC = () => {
   } = useGameContext();
   
   const [prevGameState, setPrevGameState] = useState(gameState);
-  const [selectedTab, setSelectedTab] = useState<"Bet" | "Auto">("Bet");
+  const [selectedTab, setSelectedTab] = useState<"Bet">("Bet");
   const [bets, setBets] = useState<Bet[]>([
     { 
       id: 1, 
@@ -356,7 +358,7 @@ const BettingControls: React.FC = () => {
       autoCashOut: 2.00, 
       hasPlacedBet: false,
       pendingBet: false,
-      isAutoCashOutEnabled: true,
+      isAutoCashOutEnabled: false,
       isAutoBetEnabled: false
     },
   ]);
@@ -483,12 +485,6 @@ const BettingControls: React.FC = () => {
           onClick={() => setSelectedTab("Bet")}
         >
           Bet
-        </button>
-        <button
-          className={`flex-1 py-2 ${selectedTab === "Auto" ? "border-b-2 border-gray-400" : ""}`}
-          onClick={() => setSelectedTab("Auto")}
-        >
-          Auto
         </button>
       </div>
 

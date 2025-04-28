@@ -18,7 +18,7 @@ const GameArea: React.FC = () => {
     gameState,
     autoCashOut,
     hasPlacedBet,
-    carPosition
+    // carPosition
   } = useGameContext();
   
   const gameAreaRef = useRef<HTMLDivElement>(null);

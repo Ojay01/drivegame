@@ -63,7 +63,7 @@ function startGameCycle(io) {
       // Driving phase
       gameState = 'driving';
       multiplier = 1;
-      crashPoint = 1 + Math.random() * 9; // Random crash point between 1 and 10
+      crashPoint = 1 + Math.random() * 35; // Random crash point between 1 and 10
       
       io.emit('game_state', { type: 'game_state', state: gameState });
       io.emit('crash_point', { type: 'crash_point', value: crashPoint });

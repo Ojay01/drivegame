@@ -1,4 +1,4 @@
- interface Bet {
+export interface Bet {
   id: number;
   amount: number | string;
   autoCashOut: number | string;

@@ -1,11 +1,11 @@
 "use client";
 import React from "react";
 import { Toaster } from "react-hot-toast";
-import { Wallet, Menu } from "lucide-react";
+import { Wallet } from "lucide-react";
 import { GameProvider, useGameContext } from "./GameContext";
 import GameArea from "./GameArea";
 import BettingControls from "./BettingControls";
-import GameHistory from "./GameHistory";
+// import GameHistory from "./GameHistory";
 
 // Inner component that uses the game context
 const GameContent: React.FC = () => {
