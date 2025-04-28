@@ -2,35 +2,11 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { useGameEngine } from "../game/engine";
 import toast from 'react-hot-toast'; // Import toast
+import { GameContextType, GameHistoryItem, GameState } from "@/lib/types/bet";
 
-// Define types
-export type GameState = "betting" | "driving" | "crashed" | "waiting";
 
-export interface GameHistoryItem {
-  multiplier: string;
-  result: string;
-  winnings: number;
-}
 
-interface GameContextType {
-  balance: number;
-  setBalance: React.Dispatch<React.SetStateAction<number>>;
-  betAmount: number;
-  setBetAmount: React.Dispatch<React.SetStateAction<number>>;
-  autoCashOut: number;
-  setAutoCashOut: React.Dispatch<React.SetStateAction<number>>;
-  multiplier: number;
-  gameState: GameState;
-  history: GameHistoryItem[];
-  hasPlacedBet: boolean;
-  pendingBet: boolean;
-  placeBet: () => void;
-  cancelBet: () => void;
-  handleCashOut: () => void;
-  adjustBetAmount: (amount: number) => void;
-  adjustAutoCashOut: (amount: number) => void;
-  carPosition: { x: number; y: number };
-}
+
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
 

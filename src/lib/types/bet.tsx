@@ -69,3 +69,32 @@ export const showNotification = (
       toast(message);
   }
 };
+
+// Define types
+export type GameState = "betting" | "driving" | "crashed" | "waiting";
+
+export interface GameHistoryItem {
+  multiplier: string;
+  result: string;
+  winnings: number;
+}
+
+export interface GameContextType {
+  balance: number;
+  setBalance: React.Dispatch<React.SetStateAction<number>>;
+  betAmount: number;
+  setBetAmount: React.Dispatch<React.SetStateAction<number>>;
+  autoCashOut: number;
+  setAutoCashOut: React.Dispatch<React.SetStateAction<number>>;
+  multiplier: number;
+  gameState: GameState;
+  history: GameHistoryItem[];
+  hasPlacedBet: boolean;
+  pendingBet: boolean;
+  placeBet: () => void;
+  cancelBet: () => void;
+  handleCashOut: () => void;
+  adjustBetAmount: (amount: number) => void;
+  adjustAutoCashOut: (amount: number) => void;
+  carPosition: { x: number; y: number };
+}
