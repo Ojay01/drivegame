@@ -1,8 +1,9 @@
 "use client";
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
-import { useGameEngine } from "../game/engine";
+// import { useGameEngine } from "../game/engine";
 import toast from 'react-hot-toast'; // Import toast
 import { GameContextType, GameHistoryItem, GameState } from "@/lib/types/bet";
+import { useGameSocket } from "./GameSocket";
 
 
 
@@ -38,7 +39,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     socketHistory, 
     // socketCrashPoint,
     sendMessage 
-  } = useGameEngine();
+  } = useGameSocket();
   
   // Update local state when socket data changes
   useEffect(() => {
