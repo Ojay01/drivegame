@@ -18,11 +18,11 @@ const GameArea: React.FC = () => {
     gameState,
     autoCashOut,
     hasPlacedBet,
-    // carPosition
   } = useGameContext();
   
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const roadRef = useRef<HTMLDivElement>(null);
+  const [carPosition, setCarPosition] = useState<string>("1%");
   const [isInitialized, setIsInitialized] = useState(false);
   
   // Sound refs
@@ -108,20 +108,35 @@ const GameArea: React.FC = () => {
     }
   }, [multiplier, isInitialized]);
 
-  // Calculate car position based on game state and multiplier
-  const getCarPosition = () => {
+  // Update car position based on game state and multiplier
+  // This is the key fix - we now update car position in a separate effect
+  useEffect(() => {
+    let newPosition: string;
+    
     if (gameState === "betting") {
-      return "1%"; // Starting position
+      newPosition = "1%"; // Starting position
     } else if (gameState === "driving") {
-      // Move from starting position to center as multiplier increases
-      // Cap at 50% (center) so it doesn't go off-screen
+      // Move car based on multiplier progress
       const progressPercentage = Math.min((multiplier - 1) * 10, 40);
-      return `${10 + progressPercentage}%`;
+      newPosition = `${10 + progressPercentage}%`;
     } else if (gameState === "crashed") {
-      return "50%"; // Centered position when crashed
+      newPosition = "50%"; // Centered position when crashed
+    } else {
+      newPosition = "1%"; // Default position
     }
-    return "1%"; // Default position
-  };
+    
+    // Only animate if initialized or not in driving state
+    const shouldAnimate = isInitialized || gameState !== "driving";
+    
+    if (shouldAnimate) {
+      // Normal transition
+      setCarPosition(newPosition);
+    } else {
+      // Immediate position update without animation on page load during driving state
+      // Use a short timeout to ensure the DOM has updated
+      setTimeout(() => setCarPosition(newPosition), 10);
+    }
+  }, [multiplier, gameState, isInitialized]);
 
   return (
     <div 
@@ -273,14 +288,12 @@ const GameArea: React.FC = () => {
       <div 
         className={`absolute ${gameState === "crashed" ? "animate-bounce" : ""}`} 
         style={{ 
-          left: getCarPosition(),
+          left: carPosition, // Using state variable instead of function call
           bottom: '30px',
           transform: `rotate(${gameState === "driving" ? '5deg' : '0deg'}) scale(1.2)`,
           transformOrigin: "center center",
-          // Skip transition on initial load if already driving
-          transition: (gameState === "driving" && !isInitialized) 
-            ? "none" 
-            : "all 0.5s ease-out"
+          // Conditional transition based on initialization state
+          transition: isInitialized ? "all 0.5s ease-out" : "none"
         }}
       >
         <CarSVG 

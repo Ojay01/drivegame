@@ -1,18 +1,27 @@
 "use client";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Toaster } from "react-hot-toast";
 import { Wallet } from "lucide-react";
 import { GameProvider, useGameContext } from "./GameContext";
 import GameArea from "./GameArea";
 import BettingControls from "./BettingControls";
-// import GameHistory from "./GameHistory";
+import GameLoader from "./GameLoader";
 
 // Inner component that uses the game context
 const GameContent: React.FC = () => {
   const { balance } = useGameContext();
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+
+    setIsLoaded(true);
+  }, []);
 
   return (
     <div className="bg-gray-900 text-white min-h-screen">
+      {/* Game Loader */}
+      {!isLoaded && <GameLoader />}
+      
       <Toaster
         position="top-center"
         toastOptions={{
@@ -23,7 +32,6 @@ const GameContent: React.FC = () => {
           },
         }}
       />
-
       {/* Header */}
       <header className="bg-gray-800 py-4 px-6 flex justify-between items-center">
         <div className="flex items-center">
@@ -35,7 +43,6 @@ const GameContent: React.FC = () => {
           <span className="font-medium">${balance.toFixed(2)}</span>
         </div>
       </header>
-
       {/* Main Content */}
       <main className="container mx-auto py-6 px-4">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -44,7 +51,6 @@ const GameContent: React.FC = () => {
             <GameArea />
             <BettingControls />
           </div>
-
           {/* History Sidebar */}
           <div className="lg:col-span-1">
             {/* <GameHistory /> */}
