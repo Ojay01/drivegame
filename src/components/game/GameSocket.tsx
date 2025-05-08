@@ -13,7 +13,7 @@ export const useGameSocket = () => {
   const socketRef = useRef<Socket | null>(null);
   
   // Define connection URL based on environment
-  const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "https://drivegame.vercel.app";
+  const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "https://1xdrives.com";
   
   // Initialize WebSocket connection
   const initializeSocket = useCallback(() => {
