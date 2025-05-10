@@ -27,7 +27,7 @@ export default function MultiplierHistory(): JSX.Element {
 
   useEffect(() => {
     // Connect to the server
-    const socketConnection = io(process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3000");
+    const socketConnection = io(process.env.NEXT_PUBLIC_SOCKET_URL || "https://1xdrives.com");
     setSocket(socketConnection);
 
     // Set up socket event listeners
@@ -44,7 +44,7 @@ export default function MultiplierHistory(): JSX.Element {
     socketConnection.on('connect', () => {
       console.log("Connected to server");
       // Optional: explicitly request history if server supports this
-      // socketConnection.emit('get_history');
+      socketConnection.emit('get_history');
     });
 
     // Clean up socket connection on unmount
