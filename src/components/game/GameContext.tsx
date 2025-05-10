@@ -28,7 +28,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [history, setHistory] = useState<GameHistoryItem[]>([]);
   const [hasPlacedBet, setHasPlacedBet] = useState<boolean>(false);
   const [pendingBet, setPendingBet] = useState<boolean>(false);
-  const [carPosition, setCarPosition] = useState<{ x: number; y: number }>({ x: 50, y: 150 });
+  const [carPosition, setCarPosition] = useState<{ x: number; y: number }>({ x: 0, y: 150 });
   
   const currentBetRef = useRef<number>(0);
   
