@@ -5,6 +5,7 @@ import { Wallet } from "lucide-react";
 import { GameProvider, useGameContext } from "./GameContext";
 import GameArea from "./GameArea";
 import BettingControls from "./BettingControls";
+import MultiplierHistory from "./MultiplierHistory";
 // import GameHistory from "./GameHistory";
 
 // Inner component that uses the game context
@@ -41,6 +42,9 @@ const GameContent: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Game and Controls */}
           <div className="lg:col-span-3 space-y-6">
+             <div className="mb-2 ">
+          <MultiplierHistory />
+        </div>
             <GameArea />
             <BettingControls />
           </div>
