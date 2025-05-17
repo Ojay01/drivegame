@@ -2,7 +2,7 @@ import axios from "axios";
 
 export const createApiClient = (authToken: string | null) => {
   return axios.create({
-    baseURL: "https://betpool.com/api/drives",
+    baseURL: "https://betpool.online/api/drives",
     withCredentials: true,
     headers: {
       "Content-Type": "application/json",
