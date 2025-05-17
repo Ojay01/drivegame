@@ -1,13 +1,16 @@
 "use client";
-import React, { createContext, useContext, useState, useEffect, useRef } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+} from "react";
 // import { useGameEngine } from "../game/engine";
-import toast from 'react-hot-toast'; // Import toast
+import toast from "react-hot-toast"; // Import toast
 import { GameContextType, GameHistoryItem, GameState } from "@/lib/types/bet";
 import { useGameSocket } from "./GameSocket";
-
-
-
-
+import { getBalance } from "./apiActions";
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
@@ -19,7 +22,9 @@ export const useGameContext = () => {
   return context;
 };
 
-export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [balance, setBalance] = useState<number>(1000);
   const [betAmount, setBetAmount] = useState<number>(10);
   const [autoCashOut, setAutoCashOut] = useState<number>(2);
@@ -28,53 +33,94 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [history, setHistory] = useState<GameHistoryItem[]>([]);
   const [hasPlacedBet, setHasPlacedBet] = useState<boolean>(false);
   const [pendingBet, setPendingBet] = useState<boolean>(false);
-  const [carPosition, setCarPosition] = useState<{ x: number; y: number }>({ x: 0, y: 150 });
-  
+  const [carPosition, setCarPosition] = useState<{ x: number; y: number }>({
+    x: 0,
+    y: 150,
+  });
+  const [walletType, setWalletType] = useState<"deposit" | "commission" | "withdrawable">("deposit");
+const [wallets, setWallets] = useState<{
+  deposit: number;
+  commission: number;
+  withdrawable: number;
+}>({
+  deposit: 0,
+  commission: 0,
+  withdrawable: 0,
+});
+
+// Replace old balance state
+const walletBalance = wallets[walletType];
   const currentBetRef = useRef<number>(0);
-  
+  const [authToken, setAuthToken] = useState<string | null>(null);
+ useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get("authToken");
+    setAuthToken(token);
+  }, []);
+
+useEffect(() => {
+  if (authToken) {
+    getBalance(authToken)
+      .then((res) => {
+        setWallets({
+          deposit: res.balance ?? 0,
+          commission: res.bonus ?? 0,
+          withdrawable: res.with_balance ?? 0,
+        });
+      })
+      .catch(() => {
+        // fallback values
+        setWallets({ deposit: 1000, commission: 0, withdrawable: 0 });
+      });
+  }
+}, [authToken]);
+
+
+
+ 
   // Connect to WebSocket
-  const { 
-    socketMultiplier, 
-    socketGameState, 
-    socketHistory, 
+  const {
+    socketMultiplier,
+    socketGameState,
+    socketHistory,
     // socketCrashPoint,
-    sendMessage 
+    sendMessage,
   } = useGameSocket();
-  
+
   // Update local state when socket data changes
   useEffect(() => {
     if (socketMultiplier !== null) {
       setMultiplier(socketMultiplier);
     }
   }, [socketMultiplier]);
-  
+
   useEffect(() => {
     if (socketGameState !== null) {
       setGameState(socketGameState);
     }
   }, [socketGameState]);
-  
+
   useEffect(() => {
     if (socketHistory !== null) {
       setHistory(socketHistory);
     }
   }, [socketHistory]);
-  
+
   // Calculate car position based on multiplier and game state
   useEffect(() => {
     if (gameState === "driving") {
-      const newX = Math.min(50 + (multiplier * 10), 80);
+      const newX = Math.min(50 + multiplier * 10, 80);
       const newY = 150 + Math.sin(multiplier * 0.5) * 5;
       setCarPosition({ x: newX, y: newY });
     } else if (gameState === "crashed") {
       // Add some random bounce effect on crash
-      setCarPosition(prev => ({ 
-        x: prev.x, 
-        y: prev.y + (Math.random() * 5 - 2.5)
+      setCarPosition((prev) => ({
+        x: prev.x,
+        y: prev.y + (Math.random() * 5 - 2.5),
       }));
     }
   }, [multiplier, gameState]);
-  
+
   // Initial fake history for demonstration
   useEffect(() => {
     if (history.length === 0) {
@@ -98,12 +144,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toast.success(message, {
           duration: 3000,
           style: {
-            background: '#10B981',
-            color: '#fff',
+            background: "#10B981",
+            color: "#fff",
           },
           iconTheme: {
-            primary: '#fff',
-            secondary: '#10B981',
+            primary: "#fff",
+            secondary: "#10B981",
           },
         });
         break;
@@ -111,22 +157,22 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toast.error(message, {
           duration: 4000,
           style: {
-            background: '#EF4444',
-            color: '#fff',
+            background: "#EF4444",
+            color: "#fff",
           },
           iconTheme: {
-            primary: '#fff',
-            secondary: '#EF4444',
+            primary: "#fff",
+            secondary: "#EF4444",
           },
         });
         break;
       case "info":
         toast(message, {
           duration: 2000,
-          icon: '📢',
+          icon: "📢",
           style: {
-            background: '#3B82F6',
-            color: '#fff',
+            background: "#3B82F6",
+            color: "#fff",
           },
         });
         break;
@@ -135,32 +181,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const placeBet = () => {
-    if (gameState === "driving" || gameState === "crashed") {
-      currentBetRef.current = betAmount;
-      setHasPlacedBet(true);
-      setPendingBet(true);
-      showNotification("Bet queued for next round!", "info");
-      return;
-    }
+  
 
-    if (balance < betAmount) {
-      showNotification("Insufficient balance!", "error");
-      return;
-    }
 
-    currentBetRef.current = betAmount;
-    setBalance(prev => prev - betAmount);
-    setHasPlacedBet(true);
-    showNotification("Bet placed successfully!", "success");
-    
-    // Send bet to WebSocket server
-    sendMessage({
-      type: "place_bet",
-      amount: betAmount,
-      autoCashOut: autoCashOut
-    });
-  };
 
   const cancelBet = () => {
     if (pendingBet) {
@@ -168,10 +191,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setHasPlacedBet(false);
       currentBetRef.current = 0;
       showNotification("Bet cancelled!", "info");
-      
+
       // Notify server about cancelled bet
       sendMessage({
-        type: "cancel_bet"
+        type: "cancel_bet",
       });
     }
   };
@@ -180,8 +203,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!hasPlacedBet || gameState === "crashed") return;
 
     const winnings = Math.floor(betAmount * multiplier);
-    setBalance(prev => prev + winnings);
-    
+    setBalance((prev) => prev + winnings);
+
     showNotification(
       `Cashed out at ${multiplier.toFixed(2)}x! Won $${winnings}`,
       "success"
@@ -190,20 +213,20 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setHasPlacedBet(false);
     setPendingBet(false);
     currentBetRef.current = 0;
-    
+
     // Notify server about cash out
     sendMessage({
       type: "cash_out",
-      multiplier: multiplier
+      multiplier: multiplier,
     });
   };
 
   const adjustBetAmount = (amount: number) => {
-    setBetAmount(prev => Math.max(1, prev + amount));
+    setBetAmount((prev) => Math.max(1, prev + amount));
   };
 
   const adjustAutoCashOut = (amount: number) => {
-    setAutoCashOut(prev => Math.max(1.1, Number((prev + amount).toFixed(2))));
+    setAutoCashOut((prev) => Math.max(1.1, Number((prev + amount).toFixed(2))));
   };
 
   // Handle pending bets when game state changes
@@ -211,15 +234,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (gameState === "betting" && pendingBet && hasPlacedBet) {
       const betToPlace = currentBetRef.current || betAmount;
       if (balance >= betToPlace) {
-        setBalance(prev => prev - betToPlace);
+        setBalance((prev) => prev - betToPlace);
         setPendingBet(false);
         showNotification("Bet placed for new round!", "success");
-        
+
         // Notify server about the bet
         sendMessage({
           type: "place_bet",
           amount: betToPlace,
-          autoCashOut: autoCashOut
+          autoCashOut: autoCashOut,
         });
       } else {
         setPendingBet(false);
@@ -239,7 +262,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <GameContext.Provider
       value={{
-        balance,
+        balance: walletBalance,
         setBalance,
         betAmount,
         setBetAmount,
@@ -250,12 +273,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         history,
         hasPlacedBet,
         pendingBet,
-        placeBet,
+        // placeBet,
+            walletType,
+  setWalletType,
         cancelBet,
         handleCashOut,
         adjustBetAmount,
         adjustAutoCashOut,
-        carPosition
+        carPosition,
       }}
     >
       {children}

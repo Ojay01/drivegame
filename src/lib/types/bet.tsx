@@ -1,5 +1,6 @@
 
 import toast from 'react-hot-toast'; // Import toast
+type WalletType = 'balance' | 'bonus' | 'with_balance';
 export interface Bet {
   id: number;
   amount: number | string;
@@ -8,6 +9,7 @@ export interface Bet {
   pendingBet: boolean;
   isAutoCashOutEnabled: boolean;
   isAutoBetEnabled: boolean; 
+    walletType?: WalletType;
 }
 
 export interface BetControlProps {
@@ -91,10 +93,12 @@ export interface GameContextType {
   history: GameHistoryItem[];
   hasPlacedBet: boolean;
   pendingBet: boolean;
-  placeBet: () => void;
+  // placeBet: () => void;
   cancelBet: () => void;
   handleCashOut: () => void;
   adjustBetAmount: (amount: number) => void;
   adjustAutoCashOut: (amount: number) => void;
   carPosition: { x: number; y: number };
+    walletType?: "deposit" | "commission" | "withdrawable";
+  setWalletType: (type: "deposit" | "commission" | "withdrawable") => void;
 }

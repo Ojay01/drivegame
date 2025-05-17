@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { Minus, Plus, X, ChevronDown, ChevronUp } from "lucide-react";
 import { useGameContext } from "./GameContext";
 import { Bet, BetControlProps, showNotification } from "@/lib/types/bet";
+import { cashoutAPI, crashedAPI, startGame } from "./apiActions";
 
 // Modify the BetControl component to disable controls when bet is accepted
 const BetControl: React.FC<BetControlProps> = ({
@@ -195,27 +196,44 @@ const BetControl: React.FC<BetControlProps> = ({
     showNotification("Bet cancelled and Auto Bet disabled!", "info");
   };
 
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get("authToken");
+    setAuthToken(token);
+  }, []);
+
   const cashOut = (): void => {
     const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
     const cashOutAmount = betAmount * multiplier;
 
-    setBalance((prev) => prev + cashOutAmount);
-    onUpdate({
-      ...bet,
-      hasPlacedBet: false,
-      // Queue up next bet if auto bet is enabled
-      pendingBet: bet.isAutoBetEnabled,
-    });
+    if (authToken && betAmount >= 1) {
+      cashoutAPI(cashOutAmount, authToken, multiplier, null)
+        .then((response) => {
+          setBalance(response.balance);
 
-    showNotification(
-      `Cashed out at ${multiplier.toFixed(2)}x! Won ${cashOutAmount.toFixed(
-        2
-      )} XAF`,
-      "success"
-    );
+          onUpdate({
+            ...bet,
+            hasPlacedBet: false,
+            // Queue up next bet if auto bet is enabled
+            pendingBet: bet.isAutoBetEnabled,
+          });
 
-    if (bet.isAutoBetEnabled) {
-      showNotification("Next bet queued automatically", "info");
+          showNotification(
+            `Cashed out at ${multiplier.toFixed(
+              2
+            )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
+            "success"
+          );
+
+          if (bet.isAutoBetEnabled) {
+            showNotification("Next bet queued automatically", "info");
+          }
+        })
+        .catch((error) => {
+          console.error("Cashout failed", error);
+          showNotification("Cashout failed. Please try again.", "error");
+        });
     }
   };
 
@@ -511,10 +529,14 @@ const BettingControls: React.FC = () => {
     },
   ]);
   const [activeBetIndex, setActiveBetIndex] = useState<number>(0);
-
-  // Track game state transitions
+  const [authToken, setAuthToken] = useState<string | null>(null);
   useEffect(() => {
-    // Handle game state transitions
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get("authToken");
+    setAuthToken(token);
+  }, []);
+
+  useEffect(() => {
     if (prevGameState !== "betting" && gameState === "betting") {
       // Process all pending bets when entering betting phase
       const updatedBets = bets.map((bet) => {
@@ -522,12 +544,25 @@ const BettingControls: React.FC = () => {
           const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
 
           if (balance >= betAmount) {
-            setBalance((prev) => prev - betAmount); // Deduct balance
+            // Deduct balance
+            setBalance((prev) => prev - betAmount);
 
             showNotification(
               `Pending bet of ${betAmount.toFixed(2)} XAF placed`,
               "success"
             );
+
+            // 🔥 Call the API here
+            if (authToken) {
+              startGame(betAmount, "balance", authToken)
+                .then((res) => {
+                  setBalance(balance);
+                })
+                .catch((err) => {
+                  showNotification("Failed to start game", "error");
+                  console.error("StartGame Error:", err);
+                });
+            }
 
             return {
               ...bet,
@@ -544,16 +579,28 @@ const BettingControls: React.FC = () => {
         }
         return bet;
       });
+
       setBets(updatedBets);
     }
 
+    // The rest of your transitions
     if (prevGameState === "driving" && gameState === "crashed") {
-      // Show crash notification
       showNotification("Game crashed!", "error");
 
-      // When game crashes, update all bets - keep pending bets
+      if (authToken) {
+        crashedAPI(authToken, multiplier, null)
+          .then((response) => {
+            setBalance(response.balance); // update balance with new value from server
+          })
+          .catch((error) => {
+            console.error("Crash API failed", error);
+            // showNotification(
+            //   "Failed to update crash result. Please try again.",
+            //   "error"
+            // );
+          });
+      }
       const updatedBets = bets.map((bet) => {
-        // If bet was active and auto bet is enabled, queue a new bet
         if (bet.hasPlacedBet && bet.isAutoBetEnabled) {
           showNotification("Auto bet queued for next round", "info");
           return {
@@ -562,7 +609,6 @@ const BettingControls: React.FC = () => {
             pendingBet: true,
           };
         }
-        // Clear hasPlacedBet flag for any active bets but keep pending status
         if (bet.hasPlacedBet) {
           return {
             ...bet,
@@ -574,22 +620,20 @@ const BettingControls: React.FC = () => {
       setBets(updatedBets);
     }
 
-    // Notify when a new betting round begins
     if (prevGameState !== "betting" && gameState === "betting") {
       showNotification("New betting round started", "info");
     }
 
-    // Notify when game starts driving
     if (prevGameState !== "driving" && gameState === "driving") {
       showNotification("Game started!", "info");
     }
 
     setPrevGameState(gameState);
-  }, [gameState, bets, setBalance, balance]);
+  }, [gameState, bets, setBalance, balance, authToken]);
 
   // Auto Cash Out handler for all active bets
   useEffect(() => {
-    if (gameState === "driving") {
+    if (gameState === "driving" && authToken) {
       bets.forEach((bet, index) => {
         if (
           bet.hasPlacedBet &&
@@ -597,36 +641,41 @@ const BettingControls: React.FC = () => {
           typeof bet.autoCashOut === "number" &&
           multiplier >= bet.autoCashOut
         ) {
-          // Cash out this bet
           const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
           const cashOutAmount = betAmount * multiplier;
 
-          setBalance((prev) => prev + cashOutAmount);
+          cashoutAPI(cashOutAmount, authToken, multiplier, null)
+            .then((response) => {
+              setBalance(response.balance);
 
-          showNotification(
-            `Auto cashed out at ${multiplier.toFixed(
-              2
-            )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
-            "success"
-          );
+              showNotification(
+                `Auto cashed out at ${multiplier.toFixed(
+                  2
+                )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
+                "success"
+              );
 
-          const updatedBets = [...bets];
-          updatedBets[index] = {
-            ...updatedBets[index],
-            hasPlacedBet: false,
-            // If auto bet is enabled, queue another bet for the next round
-            pendingBet: updatedBets[index].isAutoBetEnabled,
-          };
+              const updatedBets = [...bets];
+              updatedBets[index] = {
+                ...updatedBets[index],
+                hasPlacedBet: false,
+                pendingBet: updatedBets[index].isAutoBetEnabled,
+              };
 
-          if (updatedBets[index].isAutoBetEnabled) {
-            showNotification("Auto bet queued for next round", "info");
-          }
+              if (updatedBets[index].isAutoBetEnabled) {
+                showNotification("Auto bet queued for next round", "info");
+              }
 
-          setBets(updatedBets);
+              setBets(updatedBets);
+            })
+            .catch((error) => {
+              console.error("Cashout failed", error);
+              showNotification("Cashout failed. Please try again.", "error");
+            });
         }
       });
     }
-  }, [gameState, multiplier, bets, setBalance]);
+  }, [gameState, multiplier, bets, setBalance, authToken]);
 
   const addBet = (): void => {
     if (bets.length < 4) {
