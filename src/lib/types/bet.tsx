@@ -1,6 +1,5 @@
-
-import toast from 'react-hot-toast'; // Import toast
-type WalletType = 'balance' | 'bonus' | 'with_balance';
+import toast from "react-hot-toast"; // Import toast
+export type WalletType = "balance" | "bonus" | "with_balance";
 export interface Bet {
   id: number;
   amount: number | string;
@@ -8,8 +7,9 @@ export interface Bet {
   hasPlacedBet: boolean;
   pendingBet: boolean;
   isAutoCashOutEnabled: boolean;
-  isAutoBetEnabled: boolean; 
-    walletType?: WalletType;
+  isAutoBetEnabled: boolean;
+  walletType?: WalletType;
+  gameId?: number;
 }
 
 export interface BetControlProps {
@@ -35,12 +35,12 @@ export const showNotification = (
       toast.success(message, {
         duration: 3000,
         style: {
-          background: '#10B981',
-          color: '#fff',
+          background: "#10B981",
+          color: "#fff",
         },
         iconTheme: {
-          primary: '#fff',
-          secondary: '#10B981',
+          primary: "#fff",
+          secondary: "#10B981",
         },
       });
       break;
@@ -48,22 +48,22 @@ export const showNotification = (
       toast.error(message, {
         duration: 4000,
         style: {
-          background: '#EF4444',
-          color: '#fff',
+          background: "#EF4444",
+          color: "#fff",
         },
         iconTheme: {
-          primary: '#fff',
-          secondary: '#EF4444',
+          primary: "#fff",
+          secondary: "#EF4444",
         },
       });
       break;
     case "info":
       toast(message, {
         duration: 2000,
-        icon: '📢',
+        icon: "📢",
         style: {
-          background: '#3B82F6',
-          color: '#fff',
+          background: "#3B82F6",
+          color: "#fff",
         },
       });
       break;
@@ -89,6 +89,8 @@ export interface GameContextType {
   autoCashOut: number;
   setAutoCashOut: React.Dispatch<React.SetStateAction<number>>;
   multiplier: number;
+  gameId: number; 
+  setGameId: React.Dispatch<React.SetStateAction<number>>;
   gameState: GameState;
   history: GameHistoryItem[];
   hasPlacedBet: boolean;
@@ -99,6 +101,8 @@ export interface GameContextType {
   adjustBetAmount: (amount: number) => void;
   adjustAutoCashOut: (amount: number) => void;
   carPosition: { x: number; y: number };
-    walletType?: "deposit" | "commission" | "withdrawable";
-  setWalletType: (type: "deposit" | "commission" | "withdrawable") => void;
+  walletType?: WalletType;
+   setWalletType: React.Dispatch<
+    React.SetStateAction<WalletType>
+  >;
 }

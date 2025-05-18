@@ -1,522 +1,25 @@
 "use client";
-import React, { useState, useEffect } from "react";
-import { Minus, Plus, X, ChevronDown, ChevronUp } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useGameContext } from "./GameContext";
-import { Bet, BetControlProps, showNotification } from "@/lib/types/bet";
+import { Bet, showNotification } from "@/lib/types/bet";
 import { cashoutAPI, crashedAPI, startGame } from "./apiActions";
-
-// Modify the BetControl component to disable controls when bet is accepted
-const BetControl: React.FC<BetControlProps> = ({
-  bet,
-  index,
-  isActive,
-  gameState,
-  multiplier,
-  balance,
-  setBalance,
-  onUpdate,
-  onRemove,
-  onActivate,
-  canRemove,
-}) => {
-  const quickAmounts = [10.0, 20.0, 50.0, 100.0];
-
-  // Determine if controls should be disabled
-  const isControlsDisabled = bet.hasPlacedBet || bet.pendingBet;
-
-  const updateBetAmount = (change: number): void => {
-    if (isControlsDisabled) return;
-
-    const currentAmount = typeof bet.amount === "number" ? bet.amount : 0;
-    const newAmount = Math.max(0.1, currentAmount + change);
-    onUpdate({
-      ...bet,
-      amount: Math.round(newAmount * 100) / 100,
-    });
-  };
-
-  const setBetAmount = (amount: number): void => {
-    if (isControlsDisabled) return;
-
-    if (amount >= 0.1) {
-      onUpdate({
-        ...bet,
-        amount,
-      });
-    }
-  };
-
-  const handleBetAmountInput = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ): void => {
-    if (isControlsDisabled) return;
-
-    const value = e.target.value;
-    if (value) {
-      const parsedValue = parseFloat(value);
-      if (!isNaN(parsedValue)) {
-        setBetAmount(parsedValue);
-      }
-    } else if (e.target.value === "") {
-      // Allow empty input for typing purposes
-      onUpdate({
-        ...bet,
-        amount: "",
-      });
-    }
-  };
-
-  const updateAutoCashOut = (change: number): void => {
-    if (isControlsDisabled) return;
-
-    const currentValue =
-      typeof bet.autoCashOut === "number" ? bet.autoCashOut : 1.1;
-    const newValue = Math.max(1.1, currentValue + change);
-    onUpdate({
-      ...bet,
-      autoCashOut: Math.round(newValue * 100) / 100,
-    });
-  };
-
-  const handleAutoCashOutInput = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ): void => {
-    if (isControlsDisabled) return;
-
-    const value = parseFloat(e.target.value);
-    if (!isNaN(value) && value >= 1.1) {
-      onUpdate({
-        ...bet,
-        autoCashOut: value,
-      });
-    } else if (e.target.value === "") {
-      // Allow empty input for typing purposes
-      onUpdate({
-        ...bet,
-        autoCashOut: "",
-      });
-    }
-  };
-
-  const toggleAutoCashOut = (): void => {
-    if (isControlsDisabled) return;
-
-    onUpdate({
-      ...bet,
-      isAutoCashOutEnabled: !bet.isAutoCashOutEnabled,
-    });
-    showNotification(
-      !bet.isAutoCashOutEnabled
-        ? "Auto Cash Out enabled"
-        : "Auto Cash Out disabled",
-      "info"
-    );
-  };
-
-  // Updated toggleAutoBet to set bet as active or pending when turned on
-  const toggleAutoBet = (): void => {
-    if (isControlsDisabled) return;
-
-    const newAutoState = !bet.isAutoBetEnabled;
-
-    // If turning AutoBet on, place bet immediately or set pending
-    if (newAutoState) {
-      const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
-
-      // If we can place the bet immediately (in betting phase)
-      if (gameState === "betting" && balance >= betAmount) {
-        setBalance((prev) => prev - betAmount);
-        onUpdate({
-          ...bet,
-          isAutoBetEnabled: true,
-          hasPlacedBet: true,
-          pendingBet: false,
-        });
-        showNotification("Auto Bet enabled and bet placed!", "success");
-      }
-      // Otherwise set as pending for next round
-      else {
-        onUpdate({
-          ...bet,
-          isAutoBetEnabled: true,
-          pendingBet: true,
-          hasPlacedBet: false,
-        });
-        showNotification("Auto Bet enabled and queued for next round!", "info");
-      }
-    } else {
-      // Just turn off AutoBet
-      onUpdate({
-        ...bet,
-        isAutoBetEnabled: false,
-      });
-      showNotification("Auto Bet disabled", "info");
-    }
-  };
-
-  const placeBet = (): void => {
-    const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
-
-    // Can place bet immediately if in betting phase and has enough balance
-    if (gameState === "betting" && balance >= betAmount) {
-      setBalance((prev) => prev - betAmount);
-      onUpdate({
-        ...bet,
-        hasPlacedBet: true,
-        pendingBet: false,
-      });
-      showNotification("Bet placed successfully!", "success");
-    }
-    // Otherwise, set as pending for next round
-    else {
-      onUpdate({
-        ...bet,
-        pendingBet: true,
-      });
-      showNotification("Bet queued for next round!", "info");
-    }
-  };
-
-  // Updated cancelBet to turn off AutoBet as well
-  const cancelBet = (): void => {
-    // Only refund if bet is active and game is in betting phase
-    if (bet.hasPlacedBet && gameState === "betting") {
-      const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
-      setBalance((prev) => prev + betAmount);
-    }
-
-    // Turn off AutoBet, cancel pending bet status, and handle hasPlacedBet
-    onUpdate({
-      ...bet,
-      isAutoBetEnabled: false, // Turn off AutoBet when canceling
-      pendingBet: false,
-      hasPlacedBet: bet.hasPlacedBet && gameState !== "betting" ? true : false,
-    });
-
-    showNotification("Bet cancelled and Auto Bet disabled!", "info");
-  };
-
-  const [authToken, setAuthToken] = useState<string | null>(null);
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get("authToken");
-    setAuthToken(token);
-  }, []);
-
-  const cashOut = (): void => {
-    const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
-    const cashOutAmount = betAmount * multiplier;
-
-    if (authToken && betAmount >= 1) {
-      cashoutAPI(cashOutAmount, authToken, multiplier, null)
-        .then((response) => {
-          setBalance(response.balance);
-
-          onUpdate({
-            ...bet,
-            hasPlacedBet: false,
-            // Queue up next bet if auto bet is enabled
-            pendingBet: bet.isAutoBetEnabled,
-          });
-
-          showNotification(
-            `Cashed out at ${multiplier.toFixed(
-              2
-            )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
-            "success"
-          );
-
-          if (bet.isAutoBetEnabled) {
-            showNotification("Next bet queued automatically", "info");
-          }
-        })
-        .catch((error) => {
-          console.error("Cashout failed", error);
-          showNotification("Cashout failed. Please try again.", "error");
-        });
-    }
-  };
-
-  // Determine button state
-  const getButtonState = () => {
-    // If game is driving and this bet is active
-    if (gameState === "driving" && bet.hasPlacedBet) {
-      const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
-      const potentialWin = betAmount * multiplier;
-      return {
-        text: `Cash Out\n${potentialWin.toFixed(2)} XAF`,
-        action: cashOut,
-        className: "bg-yellow-500 hover:bg-yellow-400 text-black font-medium",
-      };
-    }
-    // If game crashed and this bet was active
-    else if (gameState === "crashed" && bet.hasPlacedBet) {
-      return {
-        text: "Crashed",
-        action: () => {},
-        className: "bg-gray-600 text-white font-medium",
-        disabled: true,
-      };
-    }
-    // If bet is pending (waiting for next round)
-    else if (bet.pendingBet) {
-      return {
-        text: "Cancel",
-        action: cancelBet,
-        className: "bg-red-600 hover:bg-red-500 text-white font-medium",
-      };
-    }
-    // If bet is active but in betting phase (can still cancel)
-    else if (bet.hasPlacedBet && gameState === "betting") {
-      return {
-        text: "Cancel",
-        action: cancelBet,
-        className: "bg-red-600 hover:bg-red-500 text-white font-medium",
-      };
-    }
-    // Default state - can place bet at any time when not already active
-    else {
-      const canPlaceBet = !bet.hasPlacedBet;
-      const betAmount =
-        typeof bet.amount === "number" ? bet.amount.toFixed(2) : "0.00";
-      return {
-        text: `Bet\n${betAmount} XAF`,
-        action: placeBet,
-        className: "bg-green-500 hover:bg-green-400 text-white font-medium",
-        disabled: !canPlaceBet,
-      };
-    }
-  };
-
-  const buttonState = getButtonState();
-
-  return (
-    <div
-      className={`bg-gray-900 rounded-lg mb-2 ${
-        isActive ? "border border-gray-600" : ""
-      }`}
-    >
-      <div className="flex items-center justify-between p-2">
-        <div className="flex items-center">
-          <span className="text-sm mr-2">Bet {index + 1}</span>
-          {isActive && (
-            <span className="bg-blue-500 text-xs px-1 rounded">Active</span>
-          )}
-        </div>
-        <div className="flex items-center">
-          <button
-            onClick={onActivate}
-            className="text-gray-400 hover:text-white mr-2"
-          >
-            {isActive ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-          </button>
-          {canRemove && (
-            <button
-              onClick={() => {
-                if (!isControlsDisabled) {
-                  onRemove();
-                  showNotification("Bet removed", "info");
-                }
-              }}
-              className={`text-gray-400 hover:text-red-500 ${
-                isControlsDisabled ? "opacity-50 cursor-not-allowed" : ""
-              }`}
-              disabled={isControlsDisabled}
-              title="Remove bet amount"
-            >
-              <X size={16} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Bet Amount Controls */}
-      <div className="p-2">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm">Bet Amount</span>
-          <div className="flex items-center">
-            <button
-              onClick={() => updateBetAmount(-0.5)}
-              className={`bg-gray-800 px-2 py-1 rounded-l ${
-                isControlsDisabled ? "opacity-50 cursor-not-allowed" : ""
-              }`}
-              disabled={isControlsDisabled}
-              title="Decrease bet amount"
-            >
-              <Minus size={12} />
-            </button>
-            <input
-              type="number"
-              value={bet.amount}
-              onChange={handleBetAmountInput}
-              disabled={isControlsDisabled}
-              onBlur={() => {
-                if (
-                  !isControlsDisabled &&
-                  (bet.amount === "" ||
-                    typeof bet.amount !== "number" ||
-                    bet.amount < 0.1)
-                ) {
-                  setBetAmount(10);
-                }
-              }}
-              className={`bg-gray-800 text-center text-white p-1 w-20 outline-none ${
-                isControlsDisabled ? "opacity-50 cursor-not-allowed" : ""
-              }`}
-              placeholder="Amount"
-            />
-            <button
-              onClick={() => updateBetAmount(0.1)}
-              className={`bg-gray-800 px-2 py-1 rounded-r ${
-                isControlsDisabled ? "opacity-50 cursor-not-allowed" : ""
-              }`}
-              disabled={isControlsDisabled}
-              title="Update bet amount"
-            >
-              <Plus size={12} />
-            </button>
-          </div>
-        </div>
-
-        {/* Quick Bet Amounts */}
-        <div className="grid grid-cols-4 gap-2 mb-2">
-          {quickAmounts.map((amount) => (
-            <button
-              key={amount}
-              onClick={() => {
-                if (!isControlsDisabled) {
-                  setBetAmount(amount);
-                  showNotification(
-                    `Bet amount set to ${amount.toFixed(2)} XAF`,
-                    "info"
-                  );
-                }
-              }}
-              disabled={isControlsDisabled}
-              className={`bg-gray-800 py-1 text-sm rounded-md ${
-                isControlsDisabled ? "opacity-50 cursor-not-allowed" : ""
-              }`}
-            >
-              {amount.toFixed(2)}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Auto Controls - Both on same line */}
-      <div className="p-2">
-        <div className="flex justify-between space-x-4">
-          {/* Auto Cash Out Controls */}
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm">Auto Cash Out</span>
-              <div
-                className={`w-12 h-6 rounded-full relative ${
-                  bet.isAutoCashOutEnabled ? "bg-green-500" : "bg-gray-700"
-                } ${isControlsDisabled ? "opacity-50" : "cursor-pointer"}`}
-                onClick={isControlsDisabled ? undefined : toggleAutoCashOut}
-              >
-                <div
-                  className={`absolute w-5 h-5 rounded-full bg-white top-0.5 transition-all ${
-                    bet.isAutoCashOutEnabled ? "right-0.5" : "left-0.5"
-                  }`}
-                ></div>
-              </div>
-            </div>
-
-            {bet.isAutoCashOutEnabled && (
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={() => updateAutoCashOut(-0.1)}
-                  className={`bg-gray-800 px-2 py-1 rounded-l ${
-                    isControlsDisabled ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                  disabled={isControlsDisabled}
-                  title="Decrease auto cash out"
-                >
-                  <Minus size={12} />
-                </button>
-                <input
-                  type="number"
-                  value={bet.autoCashOut}
-                  onChange={handleAutoCashOutInput}
-                  disabled={isControlsDisabled}
-                  onBlur={() => {
-                    if (
-                      !isControlsDisabled &&
-                      (bet.autoCashOut === "" ||
-                        typeof bet.autoCashOut !== "number" ||
-                        bet.autoCashOut < 1.1)
-                    ) {
-                      onUpdate({
-                        ...bet,
-                        autoCashOut: 1.1,
-                      });
-                    }
-                  }}
-                  className={`bg-gray-800 text-center text-white p-1 w-16 outline-none ${
-                    isControlsDisabled ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                  placeholder="Value"
-                />
-                <div className="bg-gray-800 px-2 py-1">x</div>
-                <button
-                  onClick={() => updateAutoCashOut(0.1)}
-                  className={`bg-gray-800 px-2 py-1 rounded-r ${
-                    isControlsDisabled ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                  disabled={isControlsDisabled}
-                  title="Increase auto cash out"
-                >
-                  <Plus size={12} />
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Auto Bet Control */}
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm">Auto Bet</span>
-              <div
-                className={`w-12 h-6 rounded-full relative ${
-                  bet.isAutoBetEnabled ? "bg-green-500" : "bg-gray-700"
-                } ${isControlsDisabled ? "opacity-50" : "cursor-pointer"}`}
-                onClick={isControlsDisabled ? undefined : toggleAutoBet}
-              >
-                <div
-                  className={`absolute w-5 h-5 rounded-full bg-white top-0.5 transition-all ${
-                    bet.isAutoBetEnabled ? "right-0.5" : "left-0.5"
-                  }`}
-                ></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Individual Bet Button */}
-      <div className="p-2">
-        <button
-          onClick={buttonState.action}
-          disabled={buttonState.disabled}
-          className={`w-full h-12 rounded-lg flex flex-col items-center justify-center whitespace-pre-line ${
-            buttonState.className
-          } ${buttonState.disabled ? "opacity-50 cursor-not-allowed" : ""}`}
-        >
-          {buttonState.text}
-        </button>
-      </div>
-    </div>
-  );
-};
+import BetControl from "../BetConttol";
 
 // Main Container Component
 const BettingControls: React.FC = () => {
-  const { gameState, balance, setBalance, multiplier } = useGameContext();
-
+  const {
+    gameState,
+    balance,
+    gameId,
+    setGameId,
+    setBalance,
+    walletType,
+    setWalletType,
+    multiplier,
+  } = useGameContext();
+  const cashedOutRef = useRef<Set<string>>(new Set()); // Using string for composite IDs
   const [prevGameState, setPrevGameState] = useState(gameState);
-  const [selectedTab, setSelectedTab] = useState<"Bet">("Bet");
+  const [selectedTab, setSelectedTab] = useState<"Bet" | "Wallet">("Bet");
   const [bets, setBets] = useState<Bet[]>([
     {
       id: 1,
@@ -526,10 +29,12 @@ const BettingControls: React.FC = () => {
       pendingBet: false,
       isAutoCashOutEnabled: false,
       isAutoBetEnabled: false,
+      gameId: 0, // Changed from null to 0
     },
   ]);
   const [activeBetIndex, setActiveBetIndex] = useState<number>(0);
   const [authToken, setAuthToken] = useState<string | null>(null);
+
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get("authToken");
@@ -539,48 +44,82 @@ const BettingControls: React.FC = () => {
   useEffect(() => {
     if (prevGameState !== "betting" && gameState === "betting") {
       // Process all pending bets when entering betting phase
-      const updatedBets = bets.map((bet) => {
-        if (bet.pendingBet) {
-          const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
+      const processBets = async () => {
+        // Create a copy of bets to update
+        let updatedBets = [...bets];
 
-          if (balance >= betAmount) {
-            // Deduct balance
-            setBalance((prev) => prev - betAmount);
+        // Process each bet sequentially to ensure proper game IDs
+        for (let i = 0; i < updatedBets.length; i++) {
+          const bet = updatedBets[i];
 
-            showNotification(
-              `Pending bet of ${betAmount.toFixed(2)} XAF placed`,
-              "success"
-            );
+          if (bet.pendingBet) {
+            const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
 
-            // 🔥 Call the API here
-            if (authToken) {
-              startGame(betAmount, "balance", authToken)
-                .then((res) => {
-                  setBalance(balance);
-                })
-                .catch((err) => {
+            if (balance >= betAmount) {
+              // Deduct balance (will be corrected by API response)
+              setBalance((prev) => prev - betAmount);
+
+              showNotification(
+                `Pending bet of ${betAmount.toFixed(2)} XAF placed`,
+                "success"
+              );
+
+              // 🔥 Call the API here
+              if (authToken && walletType) {
+                try {
+                  const res = await startGame(betAmount, walletType, authToken);
+                  const newBalance = res[walletType];
+                  console.info("StartGame newBalance:", newBalance);
+                  setBalance(newBalance);
+
+                  const newGameId = res.game_id;
+                  console.info(`StartGame for bet ${i} gameId:`, newGameId);
+
+                  // Update this specific bet with its own game ID
+                  updatedBets[i] = {
+                    ...bet,
+                    pendingBet: false,
+                    hasPlacedBet: true,
+                    gameId: newGameId, // Store the game ID with this specific bet
+                  };
+
+                  // Also update the global game ID (for other features that might use it)
+                  setGameId(newGameId);
+                } catch (err) {
                   showNotification("Failed to start game", "error");
                   console.error("StartGame Error:", err);
-                });
-            }
 
-            return {
-              ...bet,
-              pendingBet: false,
-              hasPlacedBet: true,
-            };
-          } else {
-            showNotification("Insufficient balance for pending bet!", "error");
-            return {
-              ...bet,
-              pendingBet: false,
-            };
+                  // Update bet state for failed bet
+                  updatedBets[i] = {
+                    ...bet,
+                    pendingBet: false,
+                  };
+                }
+              } else if (!walletType) {
+                showNotification("Wallet type is not selected!", "error");
+                updatedBets[i] = {
+                  ...bet,
+                  pendingBet: false,
+                };
+              }
+            } else {
+              showNotification(
+                "Insufficient balance for pending bet!",
+                "error"
+              );
+              updatedBets[i] = {
+                ...bet,
+                pendingBet: false,
+              };
+            }
           }
         }
-        return bet;
-      });
 
-      setBets(updatedBets);
+        // Update all bets at once
+        setBets(updatedBets);
+      };
+
+      processBets();
     }
 
     // The rest of your transitions
@@ -590,16 +129,15 @@ const BettingControls: React.FC = () => {
       if (authToken) {
         crashedAPI(authToken, multiplier, null)
           .then((response) => {
-            setBalance(response.balance); // update balance with new value from server
+            // setBalance(response.balance);
           })
           .catch((error) => {
             console.error("Crash API failed", error);
-            // showNotification(
-            //   "Failed to update crash result. Please try again.",
-            //   "error"
-            // );
+            console.error("multiplier", multiplier);
+            console.error("token", authToken);
           });
       }
+
       const updatedBets = bets.map((bet) => {
         if (bet.hasPlacedBet && bet.isAutoBetEnabled) {
           showNotification("Auto bet queued for next round", "info");
@@ -607,12 +145,14 @@ const BettingControls: React.FC = () => {
             ...bet,
             hasPlacedBet: false,
             pendingBet: true,
+            gameId: 0, // Reset gameId to 0 for next round
           };
         }
         if (bet.hasPlacedBet) {
           return {
             ...bet,
             hasPlacedBet: false,
+            gameId: 0, // Reset gameId to 0 for next round
           };
         }
         return bet;
@@ -629,64 +169,161 @@ const BettingControls: React.FC = () => {
     }
 
     setPrevGameState(gameState);
-  }, [gameState, bets, setBalance, balance, authToken]);
+  }, [
+    gameState,
+    bets,
+    setBalance,
+    balance,
+    gameId,
+    setGameId,
+    authToken,
+    walletType,
+  ]);
 
   // Auto Cash Out handler for all active bets
-  useEffect(() => {
-    if (gameState === "driving" && authToken) {
-      bets.forEach((bet, index) => {
-        if (
+useEffect(() => {
+  if (gameState === "driving" && authToken) {
+    // First, gather all bets that need to be cashed out
+    const betsToProcess: Array<{
+      bet: Bet;
+      index: number;
+      cashoutKey: string;
+    }> = [];
+
+    bets.forEach((bet, index) => {
+      // Create a composite key using bet ID and game ID to ensure uniqueness
+      const cashoutKey = `${bet.id}-${bet.gameId}`;
+      const alreadyCashedOut = cashedOutRef.current.has(cashoutKey);
+
+      const isValidAutoCashOut =
+        bet.hasPlacedBet &&
+        bet.isAutoCashOutEnabled &&
+        typeof bet.autoCashOut === "number" &&
+        multiplier >= bet.autoCashOut &&
+        typeof bet.gameId === "number" &&
+        bet.gameId > 0; // Ensure the bet has a valid gameId
+
+      if (isValidAutoCashOut && !alreadyCashedOut) {
+        // Mark this bet as being processed to prevent duplicate cashouts
+        cashedOutRef.current.add(cashoutKey);
+        betsToProcess.push({ bet, index, cashoutKey });
+      } else {
+        // For logging only
+        if (alreadyCashedOut) {
+          console.log(`🛑 Bet ${index} already cashed out, skipping`);
+        } else if (typeof bet.gameId !== "number" || bet.gameId <= 0) {
+          console.log(
+            `⚠️ Bet ${index} has invalid gameId (${bet.gameId}), cannot cashout`
+          );
+        } else if (
           bet.hasPlacedBet &&
           bet.isAutoCashOutEnabled &&
-          typeof bet.autoCashOut === "number" &&
-          multiplier >= bet.autoCashOut
+          typeof bet.autoCashOut === "number"
         ) {
+          console.log(
+            `⏭️ Skipping bet ${index} — multiplier (${multiplier}) < autoCashOut (${bet.autoCashOut})`
+          );
+        }
+      }
+    });
+
+    // If there are bets to cash out, handle them and update state once
+    if (betsToProcess.length > 0) {
+      console.log(
+        `🎯 Processing ${betsToProcess.length} bets for auto cashout`
+      );
+
+      // Track successful cashouts and state updates
+      const processedResults: {
+        index: number;
+        updatedBet: Bet;
+      }[] = [];
+
+      // Use a sequential approach to process bets to ensure consistent state updates
+      const processBetsSequentially = async () => {
+        // Create a copy of current bets to update
+        let updatedBets = [...bets];
+        let anySuccessfulCashout = false;
+
+        for (const { bet, index, cashoutKey } of betsToProcess) {
           const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
           const cashOutAmount = betAmount * multiplier;
 
-          cashoutAPI(cashOutAmount, authToken, multiplier, null)
-            .then((response) => {
-              setBalance(response.balance);
+          console.log(
+            `🎯 Attempting auto cashout for bet ${index} with gameId ${bet.gameId}`
+          );
 
+          try {
+            const response = await cashoutAPI(
+              cashOutAmount,
+              authToken,
+              multiplier,
+              bet.gameId
+            );
+
+            showNotification(
+              `Auto cashed out at ${multiplier.toFixed(
+                2
+              )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
+              "success"
+            );
+
+            // Update this specific bet in our working copy
+            updatedBets[index] = {
+              ...bet,
+              hasPlacedBet: false,
+              pendingBet: bet.isAutoBetEnabled,
+            };
+
+            if (bet.isAutoBetEnabled) {
               showNotification(
-                `Auto cashed out at ${multiplier.toFixed(
-                  2
-                )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
-                "success"
+                `Auto bet ${index + 1} queued for next round`,
+                "info"
               );
+            }
 
-              const updatedBets = [...bets];
-              updatedBets[index] = {
-                ...updatedBets[index],
-                hasPlacedBet: false,
-                pendingBet: updatedBets[index].isAutoBetEnabled,
-              };
+            anySuccessfulCashout = true;
+          } catch (error) {
+            console.error(`❌ Auto cashout failed for bet ${index}`, error);
+            showNotification(
+              `Cashout failed for bet ${index + 1}. Please try again.`,
+              "error"
+            );
 
-              if (updatedBets[index].isAutoBetEnabled) {
-                showNotification("Auto bet queued for next round", "info");
-              }
-
-              setBets(updatedBets);
-            })
-            .catch((error) => {
-              console.error("Cashout failed", error);
-              showNotification("Cashout failed. Please try again.", "error");
-            });
+            // Remove from cashedOut set so it can be retried
+            cashedOutRef.current.delete(cashoutKey);
+          }
         }
-      });
+
+        // Only update state if we have at least one successful cashout
+        if (anySuccessfulCashout) {
+          // Update all bets at once to avoid multiple re-renders
+          setBets(updatedBets);
+        }
+      };
+
+      // Execute the sequential processing
+      processBetsSequentially();
     }
-  }, [gameState, multiplier, bets, setBalance, authToken]);
+  }
+
+  // Reset cashout set when game state changes to betting
+  if (gameState === "betting") {
+    cashedOutRef.current.clear();
+  }
+}, [gameState, multiplier, bets, authToken]);
 
   const addBet = (): void => {
     if (bets.length < 4) {
       const newBet: Bet = {
         id: Date.now(),
-        amount: 10.0, // Changed to start with 10.00
+        amount: 10.0,
         autoCashOut: 2.0,
         hasPlacedBet: false,
         pendingBet: false,
         isAutoCashOutEnabled: false,
         isAutoBetEnabled: false,
+        gameId: 0, // Initialize with 0 instead of null
       };
       setBets([...bets, newBet]);
       setActiveBetIndex(bets.length);
@@ -714,54 +351,152 @@ const BettingControls: React.FC = () => {
   };
 
   return (
-    <div className="bg-black text-white rounded-lg">
-      {/* Tab Selection */}
-      <div className="flex border-b border-gray-800 mb-2">
+    <div className="bg-black bg-opacity-90 text-white rounded-lg border border-gray-800 shadow-lg overflow-hidden">
+      {/* Tab Selection - Enhanced with gradient and better styling */}
+      <div className="flex border-b border-gray-800">
         <button
-          className={`flex-1 py-2 ${
-            selectedTab === "Bet" ? "border-b-2 border-gray-400" : ""
+          className={`flex-1 py-3 font-medium text-sm transition-all duration-200 ${
+            selectedTab === "Bet"
+              ? "bg-gradient-to-r from-blue-900 to-blue-800 border-b-2 border-blue-500 text-white"
+              : "text-gray-400 hover:text-gray-200 hover:bg-gray-900"
           }`}
           onClick={() => setSelectedTab("Bet")}
         >
-          Bet
+          Place Bets
+        </button>
+        <button
+          className={`flex-1 py-3 font-medium text-sm transition-all duration-200 ${
+            selectedTab === "Wallet"
+              ? "bg-gradient-to-r from-purple-900 to-purple-800 border-b-2 border-purple-500 text-white"
+              : "text-gray-400 hover:text-gray-200 hover:bg-gray-900"
+          }`}
+          onClick={() => setSelectedTab("Wallet")}
+        >
+          Wallet Settings
         </button>
       </div>
 
-      <div className="p-2">
-        {/* Multiple Bets Section */}
-        <div className="mb-4">
-          <div className="md:grid md:grid-cols-2 md:gap-2 block">
-            {bets.map((bet, index) => (
-              <BetControl
-                key={bet.id}
-                bet={bet}
-                index={index}
-                isActive={index === activeBetIndex}
-                gameState={gameState}
-                multiplier={multiplier}
-                balance={balance}
-                setBalance={setBalance}
-                onUpdate={(updatedBet) => updateBet(index, updatedBet)}
-                onRemove={() => removeBet(index)}
-                onActivate={() => {
-                  setActiveBetIndex(index);
-                  showNotification(`Bet ${index + 1} is now active`, "info");
-                }}
-                canRemove={bets.length > 1}
-              />
-            ))}
-          </div>
+      <div className="p-4">
+        {selectedTab === "Bet" ? (
+          /* Betting Tab Content */
+          <div>
+            {/* Multiple Bets Section with improved grid layout */}
+            <div className="mb-4">
+              <div className="md:grid md:grid-cols-2 md:gap-3 block space-y-3 md:space-y-0">
+                {bets.map((bet, index) => (
+                  <BetControl
+                    key={bet.id}
+                    bet={bet}
+                    index={index}
+                    isActive={index === activeBetIndex}
+                    gameState={gameState}
+                    multiplier={multiplier}
+                    balance={balance}
+                    setBalance={setBalance}
+                    onUpdate={(updatedBet) => updateBet(index, updatedBet)}
+                    onRemove={() => removeBet(index)}
+                    onActivate={() => {
+                      setActiveBetIndex(index);
+                      showNotification(`Bet ${index + 1} is now active`, "info");
+                    }}
+                    canRemove={bets.length > 1}
+                  />
+                ))}
+              </div>
 
-          {/* Add Bet Button */}
-          {bets.length < 4 && (
-            <button
-              onClick={addBet}
-              className="w-full py-2 border border-dashed border-gray-600 rounded-lg hover:border-gray-400 text-gray-400 hover:text-gray-200 mt-2"
-            >
-              + Add Bet
-            </button>
-          )}
-        </div>
+              {/* Add Bet Button with enhanced styling */}
+              {bets.length < 4 && (
+                <button
+                  onClick={addBet}
+                  className="w-full py-3 mt-3 border border-dashed border-gray-600 rounded-lg 
+                           bg-gray-900 hover:bg-gray-800 text-gray-400 hover:text-gray-200 
+                           transition-all duration-300 hover:border-gray-400 font-medium"
+                >
+                  + Add New Bet
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* Wallet Tab Content - Enhanced with better styling and structure */
+          <div className="space-y-4">
+            <div className="bg-gray-900 rounded-lg p-4 border border-gray-800">
+              <h3 className="text-lg font-medium mb-4 text-purple-400">Wallet Settings</h3>
+              
+              <div className="space-y-4">
+                {/* Wallet Selection with enhanced styling */}
+                <div className="relative">
+                  <label
+                    htmlFor="wallet-type-select"
+                    className="block text-sm font-medium text-gray-400 mb-2"
+                  >
+                    Select Active Wallet:
+                  </label>
+                  <div className="relative">
+                    <select
+                      id="wallet-type-select"
+                      value={walletType || ""}
+                      onChange={(e) => setWalletType(e.target.value as any)}
+                      className="w-full bg-gray-800 text-white px-4 py-3 rounded-lg 
+                               border border-gray-700 focus:outline-none focus:ring-2 
+                               focus:ring-purple-500 focus:border-transparent appearance-none 
+                               cursor-pointer pr-10 transition-all duration-200"
+                    >
+                      <option value="">-- Select Wallet --</option>
+                      <option value="balance">Deposit Wallet</option>
+                      <option value="bonus">Bonus Wallet</option>
+                      <option value="with_balance">Withdrawable Wallet</option>
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Current Balance Display */}
+                <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-400">Current Balance:</span>
+                    <span className="text-lg font-bold text-white">{balance.toFixed(2)} XAF</span>
+                  </div>
+                  <div className="h-1 w-full bg-gray-700 mt-3 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-purple-600 to-blue-600 rounded-full" 
+                      style={{ width: `${Math.min(100, balance / 10)}%` }} 
+                    />
+                  </div>
+                </div>
+                
+                {/* Wallet Status Information */}
+                <div className="bg-gray-800 p-3 rounded-lg">
+                  <h4 className="text-sm font-medium text-gray-300 mb-2">Wallet Status</h4>
+                  <div className="flex items-center space-x-2 text-xs text-gray-400">
+                    <div className={`w-2 h-2 rounded-full ${walletType ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                    <span>{walletType ? 'Wallet Selected' : 'No Wallet Selected'}</span>
+                  </div>
+                  
+                  {!walletType && (
+                    <div className="mt-2 text-xs text-red-400 bg-red-900 bg-opacity-30 p-2 rounded">
+                      Please select a wallet to place bets
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            {/* Wallet Help Section */}
+            <div className="bg-blue-900 bg-opacity-20 rounded-lg p-3 border border-blue-800">
+              <h4 className="text-sm font-medium text-blue-400">Wallet Information</h4>
+              <ul className="mt-2 text-xs text-gray-400 space-y-1">
+                <li>• <span className="text-white">Deposit Wallet</span>: Main wallet for your deposits</li>
+                <li>• <span className="text-white">Bonus Wallet</span>: Contains bonus funds </li>
+                <li>• <span className="text-white">Withdrawable Wallet</span>: Funds available for immediate withdrawal</li>
+              </ul>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

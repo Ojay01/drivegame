@@ -24,7 +24,9 @@ export const startGame = async (
   }
 };
 
-export const getBalance = async (authToken: string): Promise<BalanceResponse> => {
+export const getBalance = async (
+  authToken: string
+): Promise<BalanceResponse> => {
   const api = createApiClient(authToken);
 
   const response = await api.get<BalanceResponse>("/get-balance");
@@ -47,17 +49,16 @@ export const crashedAPI = async (
 };
 
 export const cashoutAPI = async (
-  amount: any,
-    authToken: string,
-     score: number,
-  data?: any,
+  amount: number,
+  authToken: string,
+  score: number,
+  gameId?: number
 ) => {
   const api = createApiClient(authToken);
-
   const response = await api.post("/cashout", {
     amount,
     score,
-    data,
+    game_id: gameId,
   });
 
   return response.data;

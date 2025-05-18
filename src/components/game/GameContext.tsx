@@ -25,8 +25,8 @@ export const useGameContext = () => {
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [balance, setBalance] = useState<number>(1000);
   const [betAmount, setBetAmount] = useState<number>(10);
+  const [gameId, setGameId] = useState<number>(0);
   const [autoCashOut, setAutoCashOut] = useState<number>(2);
   const [multiplier, setMultiplier] = useState<number>(1);
   const [gameState, setGameState] = useState<GameState>("waiting");
@@ -37,47 +37,47 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
     x: 0,
     y: 150,
   });
-  const [walletType, setWalletType] = useState<"deposit" | "commission" | "withdrawable">("deposit");
-const [wallets, setWallets] = useState<{
-  deposit: number;
-  commission: number;
-  withdrawable: number;
-}>({
-  deposit: 0,
-  commission: 0,
-  withdrawable: 0,
-});
+  const [walletType, setWalletType] = useState<
+    "balance" | "bonus" | "with_balance"
+  >("balance");
+  const [wallets, setWallets] = useState<{
+    balance: number;
+    bonus: number;
+    with_balance: number;
+  }>({
+    balance: 0,
+    bonus: 0,
+    with_balance: 0,
+  });
 
-// Replace old balance state
-const walletBalance = wallets[walletType];
+  // Replace old balance state
+  const walletBalance = wallets[walletType];
   const currentBetRef = useRef<number>(0);
   const [authToken, setAuthToken] = useState<string | null>(null);
- useEffect(() => {
+  useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get("authToken");
     setAuthToken(token);
   }, []);
 
-useEffect(() => {
-  if (authToken) {
-    getBalance(authToken)
-      .then((res) => {
-        setWallets({
-          deposit: res.balance ?? 0,
-          commission: res.bonus ?? 0,
-          withdrawable: res.with_balance ?? 0,
+  useEffect(() => {
+    if (authToken) {
+      getBalance(authToken)
+        .then((res) => {
+          setWallets({
+            balance: res.balance ?? 0,
+            bonus: res.bonus ?? 0,
+            with_balance: res.with_balance ?? 0,
+          });
+        })
+        .catch(() => {
+          // fallback values
+          setWallets({ balance: 1000, bonus: 0, with_balance: 0 });
         });
-      })
-      .catch(() => {
-        // fallback values
-        setWallets({ deposit: 1000, commission: 0, withdrawable: 0 });
-      });
-  }
-}, [authToken]);
+    }
+    setWallets({ balance: 1000, bonus: 750, with_balance: 500 });
+  }, [authToken]);
 
-
-
- 
   // Connect to WebSocket
   const {
     socketMultiplier,
@@ -120,19 +120,6 @@ useEffect(() => {
       }));
     }
   }, [multiplier, gameState]);
-
-  // Initial fake history for demonstration
-  useEffect(() => {
-    if (history.length === 0) {
-      setHistory([
-        { multiplier: "2.15", result: "cash_out", winnings: 21 },
-        { multiplier: "1.50", result: "cash_out", winnings: 15 },
-        { multiplier: "3.24", result: "crash", winnings: 0 },
-        { multiplier: "5.67", result: "cash_out", winnings: 56 },
-        { multiplier: "1.89", result: "crash", winnings: 0 },
-      ]);
-    }
-  }, [history.length]);
 
   // Implement the notification system using toast
   const showNotification = (
@@ -181,10 +168,6 @@ useEffect(() => {
     }
   };
 
-  
-
-
-
   const cancelBet = () => {
     if (pendingBet) {
       setPendingBet(false);
@@ -229,11 +212,18 @@ useEffect(() => {
     setAutoCashOut((prev) => Math.max(1.1, Number((prev + amount).toFixed(2))));
   };
 
+  const setBalance = (val: number | ((prev: number) => number)) => {
+    setWallets((prev) => {
+      const updated = typeof val === "function" ? val(prev[walletType]) : val;
+      return { ...prev, [walletType]: updated };
+    });
+  };
+
   // Handle pending bets when game state changes
   useEffect(() => {
     if (gameState === "betting" && pendingBet && hasPlacedBet) {
       const betToPlace = currentBetRef.current || betAmount;
-      if (balance >= betToPlace) {
+      if (walletBalance >= betToPlace) {
         setBalance((prev) => prev - betToPlace);
         setPendingBet(false);
         showNotification("Bet placed for new round!", "success");
@@ -250,7 +240,14 @@ useEffect(() => {
         showNotification("Insufficient balance for pending bet!", "error");
       }
     }
-  }, [gameState, pendingBet, hasPlacedBet, balance, betAmount, autoCashOut]);
+  }, [
+    gameState,
+    pendingBet,
+    hasPlacedBet,
+    walletBalance,
+    betAmount,
+    autoCashOut,
+  ]);
 
   // Auto cash out logic
   useEffect(() => {
@@ -273,9 +270,10 @@ useEffect(() => {
         history,
         hasPlacedBet,
         pendingBet,
-        // placeBet,
-            walletType,
-  setWalletType,
+        gameId,
+        setGameId,
+        walletType,
+        setWalletType,
         cancelBet,
         handleCashOut,
         adjustBetAmount,
