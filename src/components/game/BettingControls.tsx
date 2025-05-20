@@ -49,71 +49,65 @@ const BettingControls: React.FC = () => {
         let updatedBets = [...bets];
 
         // Process each bet sequentially to ensure proper game IDs
-        for (let i = 0; i < updatedBets.length; i++) {
-          const bet = updatedBets[i];
+for (let i = 0; i < updatedBets.length; i++) {
+  const bet = updatedBets[i];
 
-          if (bet.pendingBet) {
-            const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
+  if (bet.pendingBet) {
+    const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
 
-            if (balance >= betAmount) {
-              // Deduct balance (will be corrected by API response)
-              setBalance((prev) => prev - betAmount);
+    if (balance >= betAmount) {
+      // Deduct balance locally
+      setBalance((prev) => prev - betAmount);
 
-              showNotification(
-                `Pending bet of ${betAmount.toFixed(2)} XAF placed`,
-                "success"
-              );
+      showNotification(
+        `Pending bet of ${betAmount.toFixed(2)} XAF placed`,
+        "success"
+      );
 
-              // 🔥 Call the API here
-              if (authToken && walletType) {
-                try {
-                  const res = await startGame(betAmount, walletType, authToken);
-                  const newBalance = res[walletType];
-                  console.info("StartGame newBalance:", newBalance);
-                  setBalance(newBalance);
+      if (authToken && walletType) {
+        // ✅ Authenticated: Proceed with API
+        try {
+          const res = await startGame(betAmount, walletType, authToken);
+          const newBalance = res[walletType];
+          setBalance(newBalance);
+          const newGameId = res.game_id;
+          setGameId(newGameId);
 
-                  const newGameId = res.game_id;
-                  console.info(`StartGame for bet ${i} gameId:`, newGameId);
+          updatedBets[i] = {
+            ...bet,
+            pendingBet: false,
+            hasPlacedBet: true,
+            gameId: newGameId,
+          };
+        } catch (err) {
+          showNotification("Failed to start game", "error");
+          console.error("StartGame Error:", err);
 
-                  // Update this specific bet with its own game ID
-                  updatedBets[i] = {
-                    ...bet,
-                    pendingBet: false,
-                    hasPlacedBet: true,
-                    gameId: newGameId, // Store the game ID with this specific bet
-                  };
-
-                  // Also update the global game ID (for other features that might use it)
-                  setGameId(newGameId);
-                } catch (err) {
-                  showNotification("Failed to start game", "error");
-                  console.error("StartGame Error:", err);
-
-                  // Update bet state for failed bet
-                  updatedBets[i] = {
-                    ...bet,
-                    pendingBet: false,
-                  };
-                }
-              } else if (!walletType) {
-                showNotification("Wallet type is not selected!", "error");
-                updatedBets[i] = {
-                  ...bet,
-                  pendingBet: false,
-                };
-              }
-            } else {
-              showNotification(
-                "Insufficient balance for pending bet!",
-                "error"
-              );
-              updatedBets[i] = {
-                ...bet,
-                pendingBet: false,
-              };
-            }
-          }
+          updatedBets[i] = {
+            ...bet,
+            pendingBet: false,
+          };
         }
+      } else {
+        // 🚫 Not authenticated: just simulate local bet
+        updatedBets[i] = {
+          ...bet,
+          pendingBet: false,
+          hasPlacedBet: true,
+          gameId: 0, // or null, since there's no server gameId
+        };
+        console.warn("Placing bet locally (unauthenticated user)");
+      }
+    } else {
+      showNotification("Insufficient balance for pending bet!", "error");
+      updatedBets[i] = {
+        ...bet,
+        pendingBet: false,
+      };
+    }
+  }
+}
+
 
         // Update all bets at once
         setBets(updatedBets);
@@ -180,10 +174,8 @@ const BettingControls: React.FC = () => {
     walletType,
   ]);
 
-  // Auto Cash Out handler for all active bets
 useEffect(() => {
-  if (gameState === "driving" && authToken) {
-    // First, gather all bets that need to be cashed out
+  if (gameState === "driving") {
     const betsToProcess: Array<{
       bet: Bet;
       index: number;
@@ -191,127 +183,97 @@ useEffect(() => {
     }> = [];
 
     bets.forEach((bet, index) => {
-      // Create a composite key using bet ID and game ID to ensure uniqueness
       const cashoutKey = `${bet.id}-${bet.gameId}`;
       const alreadyCashedOut = cashedOutRef.current.has(cashoutKey);
 
       const isValidAutoCashOut =
-        bet.hasPlacedBet &&
-        bet.isAutoCashOutEnabled &&
-        typeof bet.autoCashOut === "number" &&
-        multiplier >= bet.autoCashOut &&
-        typeof bet.gameId === "number" &&
-        bet.gameId > 0; // Ensure the bet has a valid gameId
+  bet.hasPlacedBet &&
+  bet.isAutoCashOutEnabled &&
+  typeof bet.autoCashOut === "number" &&
+  multiplier >= bet.autoCashOut &&
+  typeof bet.gameId === "number" &&
+  (authToken ? bet.gameId > 0 : bet.gameId === 0);
+
 
       if (isValidAutoCashOut && !alreadyCashedOut) {
-        // Mark this bet as being processed to prevent duplicate cashouts
         cashedOutRef.current.add(cashoutKey);
         betsToProcess.push({ bet, index, cashoutKey });
-      } else {
-        // For logging only
-        if (alreadyCashedOut) {
-          console.log(`🛑 Bet ${index} already cashed out, skipping`);
-        } else if (typeof bet.gameId !== "number" || bet.gameId <= 0) {
-          console.log(
-            `⚠️ Bet ${index} has invalid gameId (${bet.gameId}), cannot cashout`
-          );
-        } else if (
-          bet.hasPlacedBet &&
-          bet.isAutoCashOutEnabled &&
-          typeof bet.autoCashOut === "number"
-        ) {
-          console.log(
-            `⏭️ Skipping bet ${index} — multiplier (${multiplier}) < autoCashOut (${bet.autoCashOut})`
-          );
-        }
       }
     });
 
-    // If there are bets to cash out, handle them and update state once
     if (betsToProcess.length > 0) {
-      console.log(
-        `🎯 Processing ${betsToProcess.length} bets for auto cashout`
-      );
+const processBetsSequentially = async () => {
+  let updatedBets = [...bets];
+  let anySuccessfulCashout = false;
 
-      // Track successful cashouts and state updates
-      const processedResults: {
-        index: number;
-        updatedBet: Bet;
-      }[] = [];
+  for (const { bet, index, cashoutKey } of betsToProcess) {
+    const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
+    const cashOutAmount = betAmount * multiplier;
 
-      // Use a sequential approach to process bets to ensure consistent state updates
-      const processBetsSequentially = async () => {
-        // Create a copy of current bets to update
-        let updatedBets = [...bets];
-        let anySuccessfulCashout = false;
+    console.log(
+      `🎯 Attempting auto cashout for bet ${index} with gameId ${bet.gameId}`
+    );
 
-        for (const { bet, index, cashoutKey } of betsToProcess) {
-          const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
-          const cashOutAmount = betAmount * multiplier;
+    try {
+      if (authToken) {
+        await cashoutAPI(cashOutAmount, authToken, multiplier, bet.gameId);
+        showNotification(
+          `Auto cashed out at ${multiplier.toFixed(
+            2
+          )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
+          "success"
+        );
+      } else {
+        // Simulated cashout
+        showNotification(
+          `Auto cashout (unauthenticated) at ${multiplier.toFixed(
+            2
+          )}x! Simulated win of ${cashOutAmount.toFixed(2)} XAF`,
+          "info"
+        );
+      }
 
-          console.log(
-            `🎯 Attempting auto cashout for bet ${index} with gameId ${bet.gameId}`
-          );
-
-          try {
-            const response = await cashoutAPI(
-              cashOutAmount,
-              authToken,
-              multiplier,
-              bet.gameId
-            );
-
-            showNotification(
-              `Auto cashed out at ${multiplier.toFixed(
-                2
-              )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
-              "success"
-            );
-
-            // Update this specific bet in our working copy
-            updatedBets[index] = {
-              ...bet,
-              hasPlacedBet: false,
-              pendingBet: bet.isAutoBetEnabled,
-            };
-
-            if (bet.isAutoBetEnabled) {
-              showNotification(
-                `Auto bet ${index + 1} queued for next round`,
-                "info"
-              );
-            }
-
-            anySuccessfulCashout = true;
-          } catch (error) {
-            console.error(`❌ Auto cashout failed for bet ${index}`, error);
-            showNotification(
-              `Cashout failed for bet ${index + 1}. Please try again.`,
-              "error"
-            );
-
-            // Remove from cashedOut set so it can be retried
-            cashedOutRef.current.delete(cashoutKey);
-          }
-        }
-
-        // Only update state if we have at least one successful cashout
-        if (anySuccessfulCashout) {
-          // Update all bets at once to avoid multiple re-renders
-          setBets(updatedBets);
-        }
+      // ✅ Always update the bet state regardless of authToken
+      updatedBets[index] = {
+        ...bet,
+        hasPlacedBet: false,
+        pendingBet: bet.isAutoBetEnabled,
       };
 
-      // Execute the sequential processing
+      if (bet.isAutoBetEnabled) {
+        showNotification(
+          `Auto bet ${index + 1} queued for next round`,
+          "info"
+        );
+      }
+
+      anySuccessfulCashout = true;
+    } catch (error) {
+      console.error(`❌ Cashout failed for bet ${index}`, error);
+      showNotification(
+        `Cashout failed for bet ${index + 1}. Please try again.`,
+        "error"
+      );
+
+      cashedOutRef.current.delete(cashoutKey);
+    }
+  }
+
+  if (anySuccessfulCashout) {
+    setBets(updatedBets);
+  }
+};
+
+
       processBetsSequentially();
     }
   }
 
-  // Reset cashout set when game state changes to betting
   if (gameState === "betting") {
     cashedOutRef.current.clear();
   }
 }, [gameState, multiplier, bets, authToken]);
+
 
   const addBet = (): void => {
     if (bets.length < 4) {

@@ -205,39 +205,62 @@ const BetControl: React.FC<BetControlProps> = ({
   }, []);
 
   const cashOut = (): void => {
-    const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
-    const cashOutAmount = betAmount * multiplier;
+  const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
+  const cashOutAmount = betAmount * multiplier;
 
-    if (authToken && betAmount >= 1) {
-      cashoutAPI(cashOutAmount, authToken, multiplier, gameId)
-        .then((response) => {
-          // setBalance(response.balance);
+  if (betAmount < 1) {
+    showNotification("Invalid bet amount for cashout", "error");
+    return;
+  }
 
-          onUpdate({
-            ...bet,
-            hasPlacedBet: false,
-            // Queue up next bet if auto bet is enabled
-            pendingBet: bet.isAutoBetEnabled,
-          });
-
-          showNotification(
-            `Cashed out at ${multiplier.toFixed(
-              2
-            )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
-            "success"
-          );
-
-          if (bet.isAutoBetEnabled) {
-            showNotification("Next bet queued automatically", "info");
-          }
-        })
-        .catch((error) => {
-          console.error("Cashout failed", error);
-          console.error("Cashout failed gameId", gameId);
-          showNotification("Cashout failed. Please try again.", "error");
+  if (authToken) {
+    // Real cashout for authenticated users
+    cashoutAPI(cashOutAmount, authToken, multiplier, gameId)
+      .then((response) => {
+        onUpdate({
+          ...bet,
+          hasPlacedBet: false,
+          pendingBet: bet.isAutoBetEnabled,
         });
+
+        showNotification(
+          `Cashed out at ${multiplier.toFixed(
+            2
+          )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
+          "success"
+        );
+
+        if (bet.isAutoBetEnabled) {
+          showNotification("Next bet queued automatically", "info");
+        }
+
+        // Optionally: setBalance(response.balance);
+      })
+      .catch((error) => {
+        console.error("❌ Cashout failed", error);
+        showNotification("Cashout failed. Please try again.", "error");
+      });
+  } else {
+    // Simulated cashout for unauthenticated users
+    onUpdate({
+      ...bet,
+      hasPlacedBet: false,
+      pendingBet: bet.isAutoBetEnabled,
+    });
+
+    showNotification(
+      `Auto cashout (unauthenticated) at ${multiplier.toFixed(
+        2
+      )}x! Simulated win of ${cashOutAmount.toFixed(2)} XAF`,
+      "success"
+    );
+
+    if (bet.isAutoBetEnabled) {
+      showNotification("Next bet queued automatically", "info");
     }
-  };
+  }
+};
+
 
   // Determine button state
   const getButtonState = () => {
