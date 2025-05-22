@@ -5,10 +5,18 @@ import { GameProvider, useGameContext } from "./GameContext";
 import GameArea from "./GameArea";
 import BettingControls from "./BettingControls";
 import MultiplierHistory from "./MultiplierHistory";
+import GameHistory from "./GameHistory";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
 // Inner component that uses the game context
 const GameContent: React.FC = () => {
   const { balance } = useGameContext();
+
+  const searchParams = useSearchParams();
+
+  // Get authToken from search params directly
+  const authToken = searchParams.get("authToken");
 
   return (
     <div className="bg-gray-900 text-white min-h-screen">
@@ -24,21 +32,26 @@ const GameContent: React.FC = () => {
       />
 
       {/* Header */}
-      <header className="bg-gray-800 py-4 px-6 flex justify-between items-center">
-        <div className="flex items-center">
-          {/* <Menu className="mr-3" size={24} /> */}
-          <h1 className="text-xl font-bold">1xDrives</h1>
-        </div>
+      <header className=" bg-gray-800 py-4 px-6">
+        <div className="container mx-auto flex justify-between items-center">
+          <div className="flex items-center">
+            <img
+              src="/images/logo.png"
+              alt="1xDrives Logo"
+              className="h-12 w-auto"
+            />
+          </div>
 
-        <div className="flex items-center bg-gray-900 py-2 px-4 rounded-lg">
-          <Wallet className="mr-2 text-green-400" size={18} />
-          <span className="font-medium">
-            ₣
-            {new Intl.NumberFormat("en-US", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            }).format(balance ?? 0)}
-          </span>
+          <div className="flex items-center bg-gray-900 py-2 px-4 rounded-lg">
+            <Wallet className="mr-2 text-green-400" size={18} />
+            <span className="font-medium">
+              ₣
+              {new Intl.NumberFormat("en-US", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              }).format(balance ?? 0)}
+            </span>
+          </div>
         </div>
       </header>
 
@@ -51,11 +64,12 @@ const GameContent: React.FC = () => {
               <MultiplierHistory />
             </div>
             <GameArea />
-            <BettingControls />
+            <BettingControls authToken={authToken} />
           </div>
-
           {/* History Sidebar */}
-          <div className="lg:col-span-1">{/* <GameHistory /> */}</div>
+          <div className="lg:col-span-1">
+            <GameHistory authToken={authToken} />
+          </div>
         </div>
       </main>
     </div>
@@ -65,7 +79,11 @@ const GameContent: React.FC = () => {
 const CarMultiplierGame: React.FC = () => {
   return (
     <GameProvider>
-      <GameContent />
+      <Suspense
+        fallback={<div className="text-white p-4">Loading game...</div>}
+      >
+        <GameContent />
+      </Suspense>
     </GameProvider>
   );
 };

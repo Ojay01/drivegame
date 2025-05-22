@@ -16,6 +16,9 @@ const geistMono = localFont({
 export const metadata: Metadata = {
   title: "Drives Game",
   description: "A casino-style game similar to Aviator, where the thrill of the drive determines your winnings.",
+    icons: {
+    icon: "/images/logo.png",
+    }
 };
 
 

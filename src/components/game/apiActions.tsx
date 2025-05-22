@@ -1,5 +1,5 @@
 import { createApiClient } from "@/lib/api";
-import { BalanceResponse } from "@/lib/types/apitypes";
+import { BalanceResponse, GetGamesResponse } from "@/lib/types/apitypes";
 
 export const startGame = async (
   stake: number,
@@ -32,6 +32,15 @@ export const getBalance = async (
   const response = await api.get<BalanceResponse>("/get-balance");
   return response.data;
 };
+
+export const getGames = async (
+  authToken: string
+): Promise<GetGamesResponse> => {
+  const api = createApiClient(authToken);
+  const response = await api.get<GetGamesResponse>("/get-games");
+  return response.data;
+};
+
 
 export const crashedAPI = async (
   authToken: string,

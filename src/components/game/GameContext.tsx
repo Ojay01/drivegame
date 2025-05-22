@@ -11,6 +11,7 @@ import toast from "react-hot-toast"; // Import toast
 import { GameContextType, GameHistoryItem, GameState } from "@/lib/types/bet";
 import { useGameSocket } from "./GameSocket";
 import { getBalance } from "./apiActions";
+import { useSearchParams } from "next/navigation";
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
@@ -54,11 +55,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
   const walletBalance = wallets[walletType];
   const currentBetRef = useRef<number>(0);
   const [authToken, setAuthToken] = useState<string | null>(null);
+
+
   useEffect(() => {
+  if (typeof window !== "undefined") {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get("authToken");
     setAuthToken(token);
-  }, []);
+  }
+}, []);
+
 
   useEffect(() => {
     if (authToken) {

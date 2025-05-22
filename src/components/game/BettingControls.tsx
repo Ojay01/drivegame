@@ -1,4 +1,4 @@
-"use client";
+// "use client";
 import { useEffect, useRef, useState } from "react";
 import { useGameContext } from "./GameContext";
 import { Bet, showNotification } from "@/lib/types/bet";
@@ -6,7 +6,13 @@ import { cashoutAPI, crashedAPI, startGame } from "./apiActions";
 import BetControl from "../BetConttol";
 
 // Main Container Component
-const BettingControls: React.FC = () => {
+
+interface GameControlsProps {
+  authToken: string | null;
+}
+
+const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
+  // const BettingControls: React.FC = () => {
   const {
     gameState,
     balance,
@@ -33,13 +39,6 @@ const BettingControls: React.FC = () => {
     },
   ]);
   const [activeBetIndex, setActiveBetIndex] = useState<number>(0);
-  const [authToken, setAuthToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get("authToken");
-    setAuthToken(token);
-  }, []);
 
   useEffect(() => {
     if (prevGameState !== "betting" && gameState === "betting") {
@@ -49,65 +48,67 @@ const BettingControls: React.FC = () => {
         let updatedBets = [...bets];
 
         // Process each bet sequentially to ensure proper game IDs
-for (let i = 0; i < updatedBets.length; i++) {
-  const bet = updatedBets[i];
+        for (let i = 0; i < updatedBets.length; i++) {
+          const bet = updatedBets[i];
 
-  if (bet.pendingBet) {
-    const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
+          if (bet.pendingBet) {
+            const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
 
-    if (balance >= betAmount) {
-      // Deduct balance locally
-      setBalance((prev) => prev - betAmount);
+            if (balance >= betAmount) {
+              // Deduct balance locally
+              setBalance((prev) => prev - betAmount);
 
-      showNotification(
-        `Pending bet of ${betAmount.toFixed(2)} XAF placed`,
-        "success"
-      );
+              showNotification(
+                `Pending bet of ${betAmount.toFixed(2)} XAF placed`,
+                "success"
+              );
 
-      if (authToken && walletType) {
-        // ✅ Authenticated: Proceed with API
-        try {
-          const res = await startGame(betAmount, walletType, authToken);
-          const newBalance = res[walletType];
-          setBalance(newBalance);
-          const newGameId = res.game_id;
-          setGameId(newGameId);
+              if (authToken && walletType) {
+                // ✅ Authenticated: Proceed with API
+                try {
+                  const res = await startGame(betAmount, walletType, authToken);
+                  const newBalance = res[walletType];
+                  setBalance(newBalance);
+                  const newGameId = res.game_id;
+                  setGameId(newGameId);
 
-          updatedBets[i] = {
-            ...bet,
-            pendingBet: false,
-            hasPlacedBet: true,
-            gameId: newGameId,
-          };
-        } catch (err) {
-          showNotification("Failed to start game", "error");
-          console.error("StartGame Error:", err);
+                  updatedBets[i] = {
+                    ...bet,
+                    pendingBet: false,
+                    hasPlacedBet: true,
+                    gameId: newGameId,
+                  };
+                } catch (err) {
+                  showNotification("Failed to start game", "error");
+                  console.error("StartGame Error:", err);
 
-          updatedBets[i] = {
-            ...bet,
-            pendingBet: false,
-          };
+                  updatedBets[i] = {
+                    ...bet,
+                    pendingBet: false,
+                  };
+                }
+              } else {
+                // 🚫 Not authenticated: just simulate local bet
+                updatedBets[i] = {
+                  ...bet,
+                  pendingBet: false,
+                  hasPlacedBet: true,
+                  gameId: 0, // or null, since there's no server gameId
+                };
+                console.warn("Placing bet locally (unauthenticated user)");
+              }
+            } else {
+              showNotification(
+                "Insufficient balance for pending bet!",
+                "error"
+              );
+              updatedBets[i] = {
+                ...bet,
+                pendingBet: false,
+              };
+            }
+          }
         }
-      } else {
-        // 🚫 Not authenticated: just simulate local bet
-        updatedBets[i] = {
-          ...bet,
-          pendingBet: false,
-          hasPlacedBet: true,
-          gameId: 0, // or null, since there's no server gameId
-        };
-        console.warn("Placing bet locally (unauthenticated user)");
-      }
-    } else {
-      showNotification("Insufficient balance for pending bet!", "error");
-      updatedBets[i] = {
-        ...bet,
-        pendingBet: false,
-      };
-    }
-  }
-}
-
 
         // Update all bets at once
         setBets(updatedBets);
@@ -174,106 +175,108 @@ for (let i = 0; i < updatedBets.length; i++) {
     walletType,
   ]);
 
-useEffect(() => {
-  if (gameState === "driving") {
-    const betsToProcess: Array<{
-      bet: Bet;
-      index: number;
-      cashoutKey: string;
-    }> = [];
+  useEffect(() => {
+    if (gameState === "driving") {
+      const betsToProcess: Array<{
+        bet: Bet;
+        index: number;
+        cashoutKey: string;
+      }> = [];
 
-    bets.forEach((bet, index) => {
-      const cashoutKey = `${bet.id}-${bet.gameId}`;
-      const alreadyCashedOut = cashedOutRef.current.has(cashoutKey);
+      bets.forEach((bet, index) => {
+        const cashoutKey = `${bet.id}-${bet.gameId}`;
+        const alreadyCashedOut = cashedOutRef.current.has(cashoutKey);
 
-      const isValidAutoCashOut =
-  bet.hasPlacedBet &&
-  bet.isAutoCashOutEnabled &&
-  typeof bet.autoCashOut === "number" &&
-  multiplier >= bet.autoCashOut &&
-  typeof bet.gameId === "number" &&
-  (authToken ? bet.gameId > 0 : bet.gameId === 0);
+        const isValidAutoCashOut =
+          bet.hasPlacedBet &&
+          bet.isAutoCashOutEnabled &&
+          typeof bet.autoCashOut === "number" &&
+          multiplier >= bet.autoCashOut &&
+          typeof bet.gameId === "number" &&
+          (authToken ? bet.gameId > 0 : bet.gameId === 0);
 
+        if (isValidAutoCashOut && !alreadyCashedOut) {
+          cashedOutRef.current.add(cashoutKey);
+          betsToProcess.push({ bet, index, cashoutKey });
+        }
+      });
 
-      if (isValidAutoCashOut && !alreadyCashedOut) {
-        cashedOutRef.current.add(cashoutKey);
-        betsToProcess.push({ bet, index, cashoutKey });
+      if (betsToProcess.length > 0) {
+        const processBetsSequentially = async () => {
+          let updatedBets = [...bets];
+          let anySuccessfulCashout = false;
+
+          for (const { bet, index, cashoutKey } of betsToProcess) {
+            const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
+            const cashOutAmount = betAmount * multiplier;
+
+            console.log(
+              `🎯 Attempting auto cashout for bet ${index} with gameId ${bet.gameId}`
+            );
+
+            try {
+              if (authToken) {
+                await cashoutAPI(
+                  cashOutAmount,
+                  authToken,
+                  multiplier,
+                  bet.gameId
+                );
+                showNotification(
+                  `Auto cashed out at ${multiplier.toFixed(
+                    2
+                  )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
+                  "success"
+                );
+              } else {
+                // Simulated cashout
+                showNotification(
+                  `Auto cashout (unauthenticated) at ${multiplier.toFixed(
+                    2
+                  )}x! Simulated win of ${cashOutAmount.toFixed(2)} XAF`,
+                  "info"
+                );
+              }
+
+              // ✅ Always update the bet state regardless of authToken
+              updatedBets[index] = {
+                ...bet,
+                hasPlacedBet: false,
+                pendingBet: bet.isAutoBetEnabled,
+              };
+
+              if (bet.isAutoBetEnabled) {
+                showNotification(
+                  `Auto bet ${index + 1} queued for next round`,
+                  "info"
+                );
+              }
+
+              anySuccessfulCashout = true;
+            } catch (error) {
+              console.error(`❌ Cashout failed for bet ${index}`, error);
+              showNotification(
+                `Cashout failed for bet ${index + 1}. Please try again.`,
+                "error"
+              );
+
+              cashedOutRef.current.delete(cashoutKey);
+            }
+          }
+
+          if (anySuccessfulCashout) {
+            setBets(updatedBets);
+          }
+        };
+
+        processBetsSequentially();
       }
-    });
-
-    if (betsToProcess.length > 0) {
-const processBetsSequentially = async () => {
-  let updatedBets = [...bets];
-  let anySuccessfulCashout = false;
-
-  for (const { bet, index, cashoutKey } of betsToProcess) {
-    const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
-    const cashOutAmount = betAmount * multiplier;
-
-    console.log(
-      `🎯 Attempting auto cashout for bet ${index} with gameId ${bet.gameId}`
-    );
-
-    try {
-      if (authToken) {
-        await cashoutAPI(cashOutAmount, authToken, multiplier, bet.gameId);
-        showNotification(
-          `Auto cashed out at ${multiplier.toFixed(
-            2
-          )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
-          "success"
-        );
-      } else {
-        // Simulated cashout
-        showNotification(
-          `Auto cashout (unauthenticated) at ${multiplier.toFixed(
-            2
-          )}x! Simulated win of ${cashOutAmount.toFixed(2)} XAF`,
-          "info"
-        );
-      }
-
-      // ✅ Always update the bet state regardless of authToken
-      updatedBets[index] = {
-        ...bet,
-        hasPlacedBet: false,
-        pendingBet: bet.isAutoBetEnabled,
-      };
-
-      if (bet.isAutoBetEnabled) {
-        showNotification(
-          `Auto bet ${index + 1} queued for next round`,
-          "info"
-        );
-      }
-
-      anySuccessfulCashout = true;
-    } catch (error) {
-      console.error(`❌ Cashout failed for bet ${index}`, error);
-      showNotification(
-        `Cashout failed for bet ${index + 1}. Please try again.`,
-        "error"
-      );
-
-      cashedOutRef.current.delete(cashoutKey);
     }
-  }
 
-  if (anySuccessfulCashout) {
-    setBets(updatedBets);
-  }
-};
-
-
-      processBetsSequentially();
+    if (gameState === "betting") {
+      cashedOutRef.current.clear();
     }
-  }
-
-  if (gameState === "betting") {
-    cashedOutRef.current.clear();
-  }
-}, [gameState, multiplier, bets, authToken]);
-
+  }, [gameState, multiplier, bets, authToken]);
 
   const addBet = (): void => {
     if (bets.length < 4) {
@@ -359,9 +362,15 @@ const processBetsSequentially = async () => {
                     onRemove={() => removeBet(index)}
                     onActivate={() => {
                       setActiveBetIndex(index);
-                      showNotification(`Bet ${index + 1} is now active`, "info");
+                      showNotification(
+                        `Bet ${index + 1} is now active`,
+                        "info"
+                      );
                     }}
                     canRemove={bets.length > 1}
+                    authToken={authToken}
+                    gameId={gameId}
+                    walletType={walletType}
                   />
                 ))}
               </div>
@@ -383,8 +392,10 @@ const processBetsSequentially = async () => {
           /* Wallet Tab Content - Enhanced with better styling and structure */
           <div className="space-y-4">
             <div className="bg-gray-900 rounded-lg p-4 border border-gray-800">
-              <h3 className="text-lg font-medium mb-4 text-purple-400">Wallet Settings</h3>
-              
+              <h3 className="text-lg font-medium mb-4 text-purple-400">
+                Wallet Settings
+              </h3>
+
               <div className="space-y-4">
                 {/* Wallet Selection with enhanced styling */}
                 <div className="relative">
@@ -410,35 +421,58 @@ const processBetsSequentially = async () => {
                       <option value="with_balance">Withdrawable Wallet</option>
                     </select>
                     <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M19 9l-7 7-7-7"
+                        ></path>
                       </svg>
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Current Balance Display */}
                 <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-400">Current Balance:</span>
-                    <span className="text-lg font-bold text-white">{balance.toFixed(2)} XAF</span>
+                    <span className="text-sm text-gray-400">
+                      Current Balance:
+                    </span>
+                    <span className="text-lg font-bold text-white">
+                      {balance.toFixed(2)} XAF
+                    </span>
                   </div>
                   <div className="h-1 w-full bg-gray-700 mt-3 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-gradient-to-r from-purple-600 to-blue-600 rounded-full" 
-                      style={{ width: `${Math.min(100, balance / 10)}%` }} 
+                    <div
+                      className="h-full bg-gradient-to-r from-purple-600 to-blue-600 rounded-full"
+                      style={{ width: `${Math.min(100, balance / 10)}%` }}
                     />
                   </div>
                 </div>
-                
+
                 {/* Wallet Status Information */}
                 <div className="bg-gray-800 p-3 rounded-lg">
-                  <h4 className="text-sm font-medium text-gray-300 mb-2">Wallet Status</h4>
+                  <h4 className="text-sm font-medium text-gray-300 mb-2">
+                    Wallet Status
+                  </h4>
                   <div className="flex items-center space-x-2 text-xs text-gray-400">
-                    <div className={`w-2 h-2 rounded-full ${walletType ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                    <span>{walletType ? 'Wallet Selected' : 'No Wallet Selected'}</span>
+                    <div
+                      className={`w-2 h-2 rounded-full ${
+                        walletType ? "bg-green-500" : "bg-red-500"
+                      }`}
+                    ></div>
+                    <span>
+                      {walletType ? "Wallet Selected" : "No Wallet Selected"}
+                    </span>
                   </div>
-                  
+
                   {!walletType && (
                     <div className="mt-2 text-xs text-red-400 bg-red-900 bg-opacity-30 p-2 rounded">
                       Please select a wallet to place bets
@@ -447,14 +481,25 @@ const processBetsSequentially = async () => {
                 </div>
               </div>
             </div>
-            
+
             {/* Wallet Help Section */}
             <div className="bg-blue-900 bg-opacity-20 rounded-lg p-3 border border-blue-800">
-              <h4 className="text-sm font-medium text-blue-400">Wallet Information</h4>
+              <h4 className="text-sm font-medium text-blue-400">
+                Wallet Information
+              </h4>
               <ul className="mt-2 text-xs text-gray-400 space-y-1">
-                <li>• <span className="text-white">Deposit Wallet</span>: Main wallet for your deposits</li>
-                <li>• <span className="text-white">Bonus Wallet</span>: Contains bonus funds </li>
-                <li>• <span className="text-white">Withdrawable Wallet</span>: Funds available for immediate withdrawal</li>
+                <li>
+                  • <span className="text-white">Deposit Wallet</span>: Main
+                  wallet for your deposits
+                </li>
+                <li>
+                  • <span className="text-white">Bonus Wallet</span>: Contains
+                  bonus funds{" "}
+                </li>
+                <li>
+                  • <span className="text-white">Withdrawable Wallet</span>:
+                  Funds available for immediate withdrawal
+                </li>
               </ul>
             </div>
           </div>

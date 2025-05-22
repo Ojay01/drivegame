@@ -24,6 +24,9 @@ export interface BetControlProps {
   onRemove: () => void;
   onActivate: () => void;
   canRemove: boolean;
+    authToken: string | null;
+    gameId: number;
+    walletType?: WalletType;
 }
 
 export const showNotification = (

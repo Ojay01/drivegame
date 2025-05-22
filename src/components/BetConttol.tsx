@@ -1,10 +1,8 @@
-"use client";
-import React, { useState, useEffect } from "react";
+
 import { Minus, Plus, X, ChevronDown, ChevronUp } from "lucide-react";
 
 import { BetControlProps, showNotification } from "@/lib/types/bet";
-import { cashoutAPI } from "./game/apiActions";
-import { useGameContext } from "./game/GameContext";
+import { cashoutAPI, startGame } from "./game/apiActions";
 
 const BetControl: React.FC<BetControlProps> = ({
   bet,
@@ -18,12 +16,16 @@ const BetControl: React.FC<BetControlProps> = ({
   onRemove,
   onActivate,
   canRemove,
+  authToken,
+  gameId,
+  walletType,
 }) => {
   const quickAmounts = [10.0, 20.0, 50.0, 100.0];
-  const { gameId } = useGameContext();
 
   // Determine if controls should be disabled
   const isControlsDisabled = bet.hasPlacedBet || bet.pendingBet;
+
+  
 
   const updateBetAmount = (change: number): void => {
     if (isControlsDisabled) return;
@@ -155,28 +157,54 @@ const BetControl: React.FC<BetControlProps> = ({
     }
   };
 
-  const placeBet = (): void => {
-    const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
 
-    // Can place bet immediately if in betting phase and has enough balance
-    if (gameState === "betting" && balance >= betAmount) {
-      setBalance((prev) => prev - betAmount);
+  const placeBet = async (): Promise<void> => {
+  const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
+
+  if (betAmount <= 0) {
+    showNotification("Invalid bet amount.", "error");
+    return;
+  }
+
+  // Can place immediately if in betting phase and has enough balance
+  if (gameState === "betting" && balance >= betAmount) {
+    if (!walletType) {
+      showNotification("Wallet type is not selected.", "error");
+      return;
+    }
+
+    try {
+      const res = await startGame(betAmount, walletType, authToken ?? "");
+      const newBalance = res[walletType];
+      const newGameId = res.game_id;
+
+      setBalance(newBalance);
+
       onUpdate({
         ...bet,
         hasPlacedBet: true,
         pendingBet: false,
+        gameId: newGameId,
       });
+
       showNotification("Bet placed successfully!", "success");
+    } catch (error) {
+      console.error("Failed to place bet:", error);
+      showNotification("Failed to place bet. Please try again.", "error");
     }
-    // Otherwise, set as pending for next round
-    else {
-      onUpdate({
-        ...bet,
-        pendingBet: true,
-      });
-      showNotification("Bet queued for next round!", "info");
-    }
-  };
+
+    return;
+  }
+
+  // Otherwise, mark bet as pending for next round
+  onUpdate({
+    ...bet,
+    pendingBet: true,
+  });
+
+  showNotification("Bet queued for next round!", "info");
+};
+
 
   // Updated cancelBet to turn off AutoBet as well
   const cancelBet = (): void => {
@@ -197,12 +225,6 @@ const BetControl: React.FC<BetControlProps> = ({
     showNotification("Bet cancelled and Auto Bet disabled!", "info");
   };
 
-  const [authToken, setAuthToken] = useState<string | null>(null);
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get("authToken");
-    setAuthToken(token);
-  }, []);
 
   const cashOut = (): void => {
   const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
@@ -215,7 +237,7 @@ const BetControl: React.FC<BetControlProps> = ({
 
   if (authToken) {
     // Real cashout for authenticated users
-    cashoutAPI(cashOutAmount, authToken, multiplier, gameId)
+    cashoutAPI(cashOutAmount, authToken, multiplier, bet.gameId)
       .then((response) => {
         onUpdate({
           ...bet,
