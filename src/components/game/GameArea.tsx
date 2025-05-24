@@ -3,6 +3,7 @@ import React, { useRef, useEffect, useState } from "react";
 import { Gauge, Flame, TrendingUp } from "lucide-react";
 import CarSVG from "@/components/car";
 import { useGameContext } from "./GameContext";
+import CrashedCarSVG from "../crashed-car";
 
 // Sound URLs - replace these with your actual sound URLs
 const SOUND_URLS = {
@@ -316,33 +317,18 @@ const GameArea: React.FC = () => {
 
       {/* Car SVG Positioning - Modified to handle WebSocket state */}
       <div
-        className={`absolute ${
-          gameState === "crashed" ? "animate-bounce" : ""
-        }`}
+        className="absolute"
         style={{
-          left: carPosition, // Using state variable instead of function call
+          left: carPosition,
           bottom: "30px",
           transform: `rotate(${
-            gameState === "driving" ? "5deg" : "0deg"
-          }) scale(1.2)`,
+            gameState === "driving" ? "0deg" : "0deg"
+          }) scale(0.6)`,
           transformOrigin: "center center",
-          // Conditional transition based on initialization state
           transition: isInitialized ? "all 0.5s ease-out" : "none",
         }}
       >
-        <CarSVG
-          animationType={"rotate"}
-          animationDuration={15}
-          width="170"
-          animate
-        />
-
-        {/* Flames effect when driving */}
-        {gameState === "driving" && (
-          <div className="absolute -right-6 top-1/2 transform -translate-y-1/2">
-            <div className="w-8 h-4 bg-gradient-to-r from-red-500 via-orange-400 to-transparent rounded-full animate-pulse"></div>
-          </div>
-        )}
+        {gameState === "crashed" ? <CrashedCarSVG /> : <CarSVG />}
       </div>
 
       {/* Crash Effect */}

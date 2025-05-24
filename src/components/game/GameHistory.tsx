@@ -1,81 +1,113 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { History, User, DollarSign, Activity, Users, Trophy } from "lucide-react";
+import { History, Users, Trophy, TrendingUp } from "lucide-react";
 import { getGames } from "./apiActions";
 import { Game } from "@/lib/types/apitypes";
 
-type TabType = "global" | "personal";
+type TabType = "global" | "personal" | "topbets";
 
 interface GameHistoryProps {
   authToken: string | null;
+  clearSession?: boolean; 
 }
 
-const GameHistory: React.FC<GameHistoryProps> = ({ authToken }) => {
+const GameHistory: React.FC<GameHistoryProps> = ({ 
+  authToken, 
+  clearSession = false
+}) => {
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>("global");
   const [authUserId, setAuthUserId] = useState<number | null>(null);
+  const [lastClearSession, setLastClearSession] = useState<boolean>(false);
+  const [liveGames, setLiveGames] = useState<Game[]>([]);
 
-  // Fetch games data only when authToken is non-null
+useEffect(() => {
+  if (clearSession && !lastClearSession) {
+    setGames([]);
+    setLiveGames([]); 
+  }
+  setLastClearSession(clearSession);
+}, [clearSession, lastClearSession]);
+
+
+
   useEffect(() => {
-    if (!authToken) return;
+  if (!authToken) return;
 
-    let isMounted = true;
-    const fetchGames = async () => {
-      try {
-        const response = await getGames(authToken);
-        if (isMounted) {
-          setGames(response.games);
-          setAuthUserId(response.authUser);
-          setError(null);
+  let isMounted = true;
+
+  const fetchGames = async () => {
+    try {
+      const response = await getGames(authToken);
+      if (!isMounted) return;
+
+      setGames(response.games);
+      setAuthUserId(response.authUser);
+
+      // Update liveGames
+      setLiveGames((prevLiveGames) => {
+        const updatedLiveGames = [...prevLiveGames];
+        const existingIds = new Set(prevLiveGames.map(g => g.id));
+
+        for (const newGame of response.games) {
+          const existingIndex = updatedLiveGames.findIndex(g => g.id === newGame.id);
+
+          // Add if new and was playing
+          if (!existingIds.has(newGame.id) && newGame.result === "playing") {
+            updatedLiveGames.push(newGame);
+          }
+
+          // Update existing entry
+          if (existingIndex !== -1) {
+            if (newGame.result === "lost") {
+              // Remove if lost
+              updatedLiveGames.splice(existingIndex, 1);
+            } else {
+              // Update if still playing or became won
+              updatedLiveGames[existingIndex] = newGame;
+            }
+          }
         }
-      } catch (err) {
-        if (isMounted) {
-          setError("Failed to load game history");
-        }
-      } finally {
-        if (isMounted) setLoading(false);
+
+        return updatedLiveGames;
+      });
+
+      setError(null);
+    } catch (err) {
+      if (isMounted) {
+        setError("Failed to load game history");
       }
-    };
+    } finally {
+      if (isMounted) setLoading(false);
+    }
+  };
 
-    fetchGames(); // Initial fetch
+  fetchGames();
+  const intervalId = setInterval(fetchGames, 1000);
 
-    const intervalId = setInterval(fetchGames, 1000); // Poll every second
-
-    return () => {
-      isMounted = false;
-      clearInterval(intervalId); // Clean up
-    };
-  }, [authToken]);
+  return () => {
+    isMounted = false;
+    clearInterval(intervalId);
+  };
+}, [authToken]);
 
   // Filter games based on active tab
   const filteredGames = useMemo(() => {
     if (activeTab === "personal" && authUserId) {
-      // Compare authUserId with game.user_id (handle both string and number types)
       return games.filter(game => String(game.user_id) === String(authUserId));
+    } else if (activeTab === "global") {
+      // Show all games for global tab (playing, won, lost)
+      return liveGames;
+    } else if (activeTab === "topbets") {
+      // Show top 10 bets with high multiplier and status won
+      return games
+        .filter(game => game.result === "won" && game.score && game.score > 0)
+        .sort((a, b) => (b.score || 0) - (a.score || 0))
+        .slice(0, 25);
     }
     return games;
   }, [games, activeTab, authUserId]);
-
-  // Helper function to get status display
-  const getStatusDisplay = (game: Game) => {
-    if (game.result === "won") {
-      return {
-        label: `WON`,
-        className: "bg-green-500/20 text-green-400"
-      };
-    } else if (game.result === "lost") {
-      return {
-        label: "CRASH",
-        className: "bg-red-500/20 text-red-400"
-      };
-    } else {
-      return {
-        label: "PLAYING",
-        className: "bg-yellow-500/20 text-yellow-400"
-      };
-    }
-  };
 
   // Helper function to get multiplier color
   const getMultiplierColor = (score: number | null | undefined) => {
@@ -89,6 +121,45 @@ const GameHistory: React.FC<GameHistoryProps> = ({ authToken }) => {
   // Helper function to check if game belongs to current user
   const isCurrentUserGame = (game: Game) => {
     return authUserId && String(game.user_id) === String(authUserId);
+  };
+
+  // Helper function to generate avatar initials
+  const getAvatarInitials = (username: string) => {
+    return username.charAt(0).toUpperCase();
+  };
+
+  // Helper function to generate consistent avatar color
+  const getAvatarColor = (username: string) => {
+    const colors = [
+      "bg-red-500",
+      "bg-blue-500", 
+      "bg-green-500",
+      "bg-yellow-500",
+      "bg-purple-500",
+      "bg-pink-500",
+      "bg-indigo-500",
+      "bg-teal-500"
+    ];
+    const index = username.charCodeAt(0) % colors.length;
+    return colors[index];
+  };
+
+  // Helper function to get the display multiplier and payout
+  const getDisplayValues = (game: Game) => {
+    const multiplier = game.score || 0;
+    const payout = game.stake * multiplier;
+    
+    return {
+      multiplier,
+      payout
+    };
+  };
+
+  // Helper function to get row background color based on status
+  const getRowBackground = (game: Game) => {
+    if (game.result === "won") return "bg-green-900/20 border-green-500/30";
+    if (game.result === "lost") return "bg-red-900/20 border-red-500/30";
+    return "bg-gray-700/30 border-gray-600/30"; // playing
   };
 
   if (loading) {
@@ -129,7 +200,18 @@ const GameHistory: React.FC<GameHistoryProps> = ({ authToken }) => {
           }`}
         >
           <Users size={16} className="mr-2" />
-          <span className="text-sm sm:text-base">All Players</span>
+          <span className="text-sm sm:text-base">Live</span>
+        </button>
+        <button
+          onClick={() => setActiveTab("topbets")}
+          className={`flex items-center px-3 sm:px-4 py-2 whitespace-nowrap flex-shrink-0 ${
+            activeTab === "topbets" 
+              ? "border-b-2 border-blue-400 text-blue-400" 
+              : "text-gray-400 hover:text-gray-200"
+          }`}
+        >
+          <TrendingUp size={16} className="mr-2" />
+          <span className="text-sm sm:text-base">Top </span>
         </button>
         <button
           onClick={() => setActiveTab("personal")}
@@ -144,90 +226,59 @@ const GameHistory: React.FC<GameHistoryProps> = ({ authToken }) => {
         </button>
       </div>
       
-      {/* Desktop Table Header - Hidden on mobile */}
-      <div className="hidden sm:grid sm:grid-cols-4 gap-4 mb-2 text-sm text-gray-400 px-2 py-1">
-        <div className="flex items-center min-w-0">
-          <User size={14} className="mr-1 flex-shrink-0" />
-          <span className="truncate">Player</span>
-        </div>
-        <div className="flex items-center justify-center min-w-0">
-          <DollarSign size={14} className="mr-1 flex-shrink-0" />
-          <span className="truncate">Bet</span>
-        </div>
-        <div className="flex justify-center min-w-0">
-          <span className="truncate">Multiplier</span>
-        </div>
-        <div className="flex items-center justify-center min-w-0">
-          <Activity size={14} className="mr-1 flex-shrink-0" />
-          <span className="truncate">Status</span>
-        </div>
-      </div>
-      
       <div className="max-h-96 sm:max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600">
         {filteredGames.length > 0 ? (
-          <div className="divide-y divide-gray-700">
+          <div className="space-y-1">
             {filteredGames.map((game: Game) => {
-              const status = getStatusDisplay(game);
-              const multiplierColor = getMultiplierColor(game.score);
               const isCurrentUser = isCurrentUserGame(game);
+              const avatarInitials = getAvatarInitials(game.username);
+              const avatarColor = getAvatarColor(game.username);
+              const { multiplier, payout } = getDisplayValues(game);
+              const multiplierColor = getMultiplierColor(multiplier);
+              const rowBg = getRowBackground(game);
               
               return (
-                <div key={game.id} className="py-3 hover:bg-gray-750 px-2 transition-colors duration-150">
-                  {/* Mobile Layout */}
-                  <div className="block sm:hidden space-y-2">
-                    <div className="flex justify-between items-start">
-                      <div className="min-w-0 flex-1">
-                        <div className="font-medium truncate">
+                <div key={game.id} className={`${rowBg} border rounded-lg w-fit p-1 transition-all duration-200`}>
+                  <div className="flex items-center justify-between">
+                    {/* Left side - Avatar and Username */}
+                    <div className="flex items-center min-w-0 flex-shrink-0" style={{ width: '120px' }}>
+                      <div className={`w-6 h-6 rounded-full ${avatarColor} flex items-center justify-center text-white font-medium text-sm mr-3 flex-shrink-0`}>
+                        {avatarInitials}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-medium truncate text-sm">
                           {isCurrentUser ? (
-                            <span className="text-blue-400">{game.username} (You)</span>
+                            <span className="text-blue-400">{game.username}</span>
                           ) : (
                             <span className="text-white">{game.username}</span>
                           )}
                         </div>
                       </div>
-                      <div className="flex-shrink-0 ml-2">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${status.className}`}>
-                          {status.label}
-                        </span>
-                      </div>
                     </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <div className="flex items-center text-gray-300">
-                        <DollarSign size={12} className="mr-1" />
-                        <span className="font-mono">₣{game.stake.toFixed(2)}</span>
-                      </div>
-                      <div className={`font-mono font-medium ${multiplierColor}`}>
-                        {game.score ? `${game.score.toFixed(2)}x` : "0.00x"}
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Desktop Layout */}
-                  <div className="hidden sm:grid sm:grid-cols-4 gap-4 items-center">
-                    <div className="font-medium min-w-0">
-                      <div className="truncate">
-                        {isCurrentUser ? (
-                          <span className="text-blue-400">{game.username} (You)</span>
-                        ) : (
-                          <span className="text-white">{game.username}</span>
-                        )}
-                      </div>
+                    {/* Bet Amount */}
+                    <div className="flex items-center text-gray-300 flex-shrink-0 min-w-0" style={{ width: '80px' }}>
+                      <span className="font-mono text-sm">₣{game.stake.toFixed(2)}</span>
                     </div>
-                    
-                    <div className="font-mono text-center min-w-0">
-                      <span className="truncate inline-block">₣{game.stake.toFixed(2)}</span>
+
+                    {/* Multiplier */}
+                    <div className={`font-mono font-bold text-sm flex-shrink-0 min-w-0 text-center ${multiplierColor}`} style={{ width: '60px' }}>
+                      {multiplier.toFixed(2)}x
                     </div>
-                    
-                    <div className={`font-mono text-center font-medium min-w-0 ${multiplierColor}`}>
-                      <span className="truncate inline-block">
-                        {game.score ? `${game.score.toFixed(2)}x` : "0.00x"}
-                      </span>
-                    </div>
-                    
-                    <div className="flex justify-center min-w-0">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${status.className} truncate`}>
-                        {status.label}
-                      </span>
+
+                    {/* Payout or Status */}
+                    <div className="flex items-center flex-shrink-0 min-w-0 text-right justify-end" style={{ width: '80px' }}>
+                      {game.result === "won" ? (
+                        <span className="font-mono text-sm text-gray-300">₣{payout.toFixed(2)}</span>
+                      ) : (
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          game.result === "playing" 
+                            ? "bg-yellow-500/20 text-yellow-400" 
+                            : "bg-red-500/20 text-red-400"
+                        }`}>
+                          {game.result === "playing" ? "PLAYING" : "CRASH"}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -238,7 +289,9 @@ const GameHistory: React.FC<GameHistoryProps> = ({ authToken }) => {
           <div className="py-8 text-center text-gray-400">
             {activeTab === "personal" 
               ? "You haven't placed any bets yet."
-              : "No game history available."}
+              : activeTab === "topbets"
+              ? "No winning bets found."
+              : "No active games found."}
           </div>
         )}
       </div>

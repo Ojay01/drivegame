@@ -202,74 +202,65 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
       });
 
       if (betsToProcess.length > 0) {
-        const processBetsSequentially = async () => {
-          let updatedBets = [...bets];
-          let anySuccessfulCashout = false;
+        let updatedBets = [...bets];
+        let anySuccessfulCashout = false;
 
-          for (const { bet, index, cashoutKey } of betsToProcess) {
-            const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
-            const cashOutAmount = betAmount * multiplier;
+        // Process all bets in parallel (non-blocking)
+        betsToProcess.forEach(async ({ bet, index, cashoutKey }) => {
+          const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
+          const cashOutAmount = betAmount * multiplier;
 
-            console.log(
-              `🎯 Attempting auto cashout for bet ${index} with gameId ${bet.gameId}`
-            );
+          console.log(
+            `🎯 Attempting auto cashout for bet ${index} with gameId ${bet.gameId}`
+          );
 
-            try {
-              if (authToken) {
-                await cashoutAPI(
-                  cashOutAmount,
-                  authToken,
-                  multiplier,
-                  bet.gameId
-                );
-                showNotification(
-                  `Auto cashed out at ${multiplier.toFixed(
-                    2
-                  )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
-                  "success"
-                );
-              } else {
-                // Simulated cashout
-                showNotification(
-                  `Auto cashout (unauthenticated) at ${multiplier.toFixed(
-                    2
-                  )}x! Simulated win of ${cashOutAmount.toFixed(2)} XAF`,
-                  "info"
-                );
-              }
-
-              // ✅ Always update the bet state regardless of authToken
-              updatedBets[index] = {
-                ...bet,
-                hasPlacedBet: false,
-                pendingBet: bet.isAutoBetEnabled,
-              };
-
-              if (bet.isAutoBetEnabled) {
-                showNotification(
-                  `Auto bet ${index + 1} queued for next round`,
-                  "info"
-                );
-              }
-
-              anySuccessfulCashout = true;
-            } catch (error) {
-              console.error(`❌ Cashout failed for bet ${index}`, error);
-              showNotification(
-                `Cashout failed for bet ${index + 1}. Please try again.`,
-                "error"
+          try {
+            if (authToken) {
+              await cashoutAPI(
+                cashOutAmount,
+                authToken,
+                multiplier,
+                bet.gameId
               );
-
-              cashedOutRef.current.delete(cashoutKey);
+              showNotification(
+                `Auto cashed out at ${multiplier.toFixed(
+                  2
+                )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
+                "success"
+              );
+            } else {
+              showNotification(
+                `Auto cashout (unauthenticated) at ${multiplier.toFixed(
+                  2
+                )}x! Simulated win of ${cashOutAmount.toFixed(2)} XAF`,
+                "info"
+              );
             }
-          }
 
-          if (anySuccessfulCashout) {
-            setBets(updatedBets);
-          }
-        };
+            updatedBets[index] = {
+              ...bet,
+              hasPlacedBet: false,
+              pendingBet: bet.isAutoBetEnabled,
+            };
 
-        processBetsSequentially();
+            if (bet.isAutoBetEnabled) {
+              showNotification(
+                `Auto bet ${index + 1} queued for next round`,
+                "info"
+              );
+            }
+
+            anySuccessfulCashout = true;
+            setBets([...updatedBets]); // update after each success
+          } catch (error) {
+            console.error(`❌ Cashout failed for bet ${index}`, error);
+            showNotification(
+              `Cashout failed for bet ${index + 1}. Please try again.`,
+              "error"
+            );
+            cashedOutRef.current.delete(cashoutKey);
+          }
+        });
       }
     }
 
