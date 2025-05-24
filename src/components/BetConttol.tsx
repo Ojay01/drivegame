@@ -17,7 +17,6 @@ const BetControl: React.FC<BetControlProps> = ({
   onActivate,
   canRemove,
   authToken,
-  gameId,
   walletType,
 }) => {
   const quickAmounts = [10.0, 20.0, 50.0, 100.0];
@@ -108,12 +107,12 @@ const BetControl: React.FC<BetControlProps> = ({
       ...bet,
       isAutoCashOutEnabled: !bet.isAutoCashOutEnabled,
     });
-    showNotification(
-      !bet.isAutoCashOutEnabled
-        ? "Auto Cash Out enabled"
-        : "Auto Cash Out disabled",
-      "info"
-    );
+    // showNotification(
+      // bet.isAutoCashOutEnabled
+    //      "Auto Cash Out enabled"
+    //     : "Auto Cash Out disabled",
+    //   "info"
+    // );
   };
 
   // Updated toggleAutoBet to set bet as active or pending when turned on
@@ -135,7 +134,7 @@ const BetControl: React.FC<BetControlProps> = ({
           hasPlacedBet: true,
           pendingBet: false,
         });
-        showNotification("Auto Bet enabled and bet placed!", "success");
+        // showNotification("Auto Bet enabled and bet placed!", "success");
       }
       // Otherwise set as pending for next round
       else {
@@ -145,7 +144,7 @@ const BetControl: React.FC<BetControlProps> = ({
           pendingBet: true,
           hasPlacedBet: false,
         });
-        showNotification("Auto Bet enabled and queued for next round!", "info");
+        // showNotification("Auto Bet enabled and queued for next round!", "info");
       }
     } else {
       // Just turn off AutoBet
@@ -153,7 +152,7 @@ const BetControl: React.FC<BetControlProps> = ({
         ...bet,
         isAutoBetEnabled: false,
       });
-      showNotification("Auto Bet disabled", "info");
+      // showNotification("Auto Bet disabled", "info");
     }
   };
 
@@ -162,14 +161,14 @@ const BetControl: React.FC<BetControlProps> = ({
   const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
 
   if (betAmount <= 0) {
-    showNotification("Invalid bet amount.", "error");
+    // showNotification("Invalid bet amount.", "error");
     return;
   }
 
   // Can place immediately if in betting phase and has enough balance
   if (gameState === "betting" && balance >= betAmount) {
     if (!walletType) {
-      showNotification("Wallet type is not selected.", "error");
+      // showNotification("Wallet type is not selected.", "error");
       return;
     }
 
@@ -187,10 +186,10 @@ const BetControl: React.FC<BetControlProps> = ({
         gameId: newGameId,
       });
 
-      showNotification("Bet placed successfully!", "success");
+      // showNotification("Bet placed successfully!", "success");
     } catch (error) {
       console.error("Failed to place bet:", error);
-      showNotification("Failed to place bet. Please try again.", "error");
+      // showNotification("Failed to place bet. Please try again.", "error");
     }
 
     return;
@@ -202,7 +201,7 @@ const BetControl: React.FC<BetControlProps> = ({
     pendingBet: true,
   });
 
-  showNotification("Bet queued for next round!", "info");
+  // showNotification("Bet queued for next round!", "info");
 };
 
 
@@ -222,7 +221,7 @@ const BetControl: React.FC<BetControlProps> = ({
       hasPlacedBet: bet.hasPlacedBet && gameState !== "betting" ? true : false,
     });
 
-    showNotification("Bet cancelled and Auto Bet disabled!", "info");
+    // showNotification("Bet cancelled and Auto Bet disabled!", "info");
   };
 
 
@@ -253,7 +252,7 @@ const BetControl: React.FC<BetControlProps> = ({
         );
 
         if (bet.isAutoBetEnabled) {
-          showNotification("Next bet queued automatically", "info");
+          // showNotification("Next bet queued automatically", "info");
         }
 
         // Optionally: setBalance(response.balance);
@@ -277,9 +276,9 @@ const BetControl: React.FC<BetControlProps> = ({
       "success"
     );
 
-    if (bet.isAutoBetEnabled) {
-      showNotification("Next bet queued automatically", "info");
-    }
+    // if (bet.isAutoBetEnabled) {
+    //   showNotification("Next bet queued automatically", "info");
+    // }
   }
 };
 
@@ -362,7 +361,7 @@ const BetControl: React.FC<BetControlProps> = ({
               onClick={() => {
                 if (!isControlsDisabled) {
                   onRemove();
-                  showNotification("Bet removed", "info");
+                  // showNotification("Bet removed", "info");
                 }
               }}
               className={`text-gray-400 hover:text-red-500 ${
@@ -433,10 +432,10 @@ const BetControl: React.FC<BetControlProps> = ({
               onClick={() => {
                 if (!isControlsDisabled) {
                   setBetAmount(amount);
-                  showNotification(
-                    `Bet amount set to ${amount.toFixed(2)} XAF`,
-                    "info"
-                  );
+                  // showNotification(
+                  //   `Bet amount set to ${amount.toFixed(2)} XAF`,
+                  //   "info"
+                  // );
                 }
               }}
               disabled={isControlsDisabled}

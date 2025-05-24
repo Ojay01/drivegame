@@ -58,10 +58,10 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
               // Deduct balance locally
               setBalance((prev) => prev - betAmount);
 
-              showNotification(
-                `Pending bet of ${betAmount.toFixed(2)} XAF placed`,
-                "success"
-              );
+              // showNotification(
+              //   `Pending bet of ${betAmount.toFixed(2)} XAF placed`,
+              //   "success"
+              // );
 
               if (authToken && walletType) {
                 // ✅ Authenticated: Proceed with API
@@ -79,7 +79,7 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
                     gameId: newGameId,
                   };
                 } catch (err) {
-                  showNotification("Failed to start game", "error");
+                  // showNotification("Failed to start game", "error");
                   console.error("StartGame Error:", err);
 
                   updatedBets[i] = {
@@ -119,7 +119,7 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
 
     // The rest of your transitions
     if (prevGameState === "driving" && gameState === "crashed") {
-      showNotification("Game crashed!", "error");
+      // showNotification("Game crashed!", "error");
 
       if (authToken) {
         crashedAPI(authToken, multiplier, null)
@@ -135,7 +135,7 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
 
       const updatedBets = bets.map((bet) => {
         if (bet.hasPlacedBet && bet.isAutoBetEnabled) {
-          showNotification("Auto bet queued for next round", "info");
+          // showNotification("Auto bet queued for next round", "info");
           return {
             ...bet,
             hasPlacedBet: false,
@@ -156,11 +156,11 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
     }
 
     if (prevGameState !== "betting" && gameState === "betting") {
-      showNotification("New betting round started", "info");
+      // showNotification("New betting round started", "info");
     }
 
     if (prevGameState !== "driving" && gameState === "driving") {
-      showNotification("Game started!", "info");
+      // showNotification("Game started!", "info");
     }
 
     setPrevGameState(gameState);
@@ -243,21 +243,21 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
               pendingBet: bet.isAutoBetEnabled,
             };
 
-            if (bet.isAutoBetEnabled) {
-              showNotification(
-                `Auto bet ${index + 1} queued for next round`,
-                "info"
-              );
-            }
+            // if (bet.isAutoBetEnabled) {
+            //   showNotification(
+            //     `Auto bet ${index + 1} queued for next round`,
+            //     "info"
+            //   );
+            // }
 
             anySuccessfulCashout = true;
             setBets([...updatedBets]); // update after each success
           } catch (error) {
             console.error(`❌ Cashout failed for bet ${index}`, error);
-            showNotification(
-              `Cashout failed for bet ${index + 1}. Please try again.`,
-              "error"
-            );
+            // showNotification(
+            //   `Cashout failed for bet ${index + 1}. Please try again.`,
+            //   "error"
+            // );
             cashedOutRef.current.delete(cashoutKey);
           }
         });
@@ -283,9 +283,9 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
       };
       setBets([...bets, newBet]);
       setActiveBetIndex(bets.length);
-      showNotification("New bet added", "success");
+      // showNotification("New bet added", "success");
     } else {
-      showNotification("Maximum of 4 bets allowed", "error");
+      // showNotification("Maximum of 4 bets allowed", "error");
     }
   };
 
@@ -353,10 +353,10 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
                     onRemove={() => removeBet(index)}
                     onActivate={() => {
                       setActiveBetIndex(index);
-                      showNotification(
-                        `Bet ${index + 1} is now active`,
-                        "info"
-                      );
+                      // showNotification(
+                      //   `Bet ${index + 1} is now active`,
+                      //   "info"
+                      // );
                     }}
                     canRemove={bets.length > 1}
                     authToken={authToken}
