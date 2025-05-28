@@ -168,6 +168,13 @@ const BetControl: React.FC<BetControlProps> = ({
         return;
       }
 
+      onUpdate({
+        ...bet,
+        hasPlacedBet: true,
+        pendingBet: false,
+      });
+      setBalance((prev) => prev - betAmount);
+
       try {
         const res = await startGame(betAmount, walletType, authToken ?? "");
         const newBalance = res[walletType];
@@ -234,32 +241,44 @@ const BetControl: React.FC<BetControlProps> = ({
       return;
     }
 
+    onUpdate({
+      ...bet,
+      hasPlacedBet: false,
+      pendingBet: bet.isAutoBetEnabled,
+    });
+    setBalance((prev) => prev + cashOutAmount, "with_balance");
+    showNotification(
+      `Cashed out at ${multiplier.toFixed(2)}x! Won ${cashOutAmount.toFixed(
+        2
+      )} XAF`,
+      "success"
+    );
     if (authToken) {
       // Real cashout for authenticated users
-      cashoutAPI(cashOutAmount, authToken, multiplier, bet.gameId)
-        .then((response) => {
-          onUpdate({
-            ...bet,
-            hasPlacedBet: false,
-            pendingBet: bet.isAutoBetEnabled,
-          });
+      cashoutAPI(cashOutAmount, authToken, multiplier, bet.gameId);
+      // .then((response) => {
+      //   // onUpdate({
+      //   //   ...bet,
+      //   //   hasPlacedBet: false,
+      //   //   pendingBet: bet.isAutoBetEnabled,
+      //   // });
 
-          showNotification(
-            `Cashed out at ${multiplier.toFixed(
-              2
-            )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
-            "success"
-          );
+      //   showNotification(
+      //     `Cashed out at ${multiplier.toFixed(
+      //       2
+      //     )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
+      //     "success"
+      //   );
 
-          if (bet.isAutoBetEnabled) {
-            // showNotification("Next bet queued automatically", "info");
-          }
-          setBalance((prev) => prev + cashOutAmount, "with_balance");
-        })
-        .catch((error) => {
-          console.error("❌ Cashout failed", error);
-          showNotification("Cashout failed. Please try again.", "error");
-        });
+      //   if (bet.isAutoBetEnabled) {
+      //     // showNotification("Next bet queued automatically", "info");
+      //   }
+      //   setBalance((prev) => prev + cashOutAmount, "with_balance");
+      // })
+      // .catch((error) => {
+      //   console.error("❌ Cashout failed", error);
+      //   showNotification("Cashout failed. Please try again.", "error");
+      // });
     } else {
       // Simulated cashout for unauthenticated users
       onUpdate({

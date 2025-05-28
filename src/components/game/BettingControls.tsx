@@ -214,6 +214,14 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
             `🎯 Attempting auto cashout for bet ${index} with gameId ${bet.gameId}`
           );
 
+            showNotification(
+                `Auto cashed out at ${multiplier.toFixed(
+                  2
+                )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
+                "success"
+              );
+              setBalance((prev) => prev + cashOutAmount,  'with_balance');
+
           try {
             if (authToken) {
               await cashoutAPI(
@@ -222,13 +230,13 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
                 multiplier,
                 bet.gameId
               );
-              showNotification(
-                `Auto cashed out at ${multiplier.toFixed(
-                  2
-                )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
-                "success"
-              );
-              setBalance((prev) => prev + cashOutAmount,  'with_balance');
+              // showNotification(
+              //   `Auto cashed out at ${multiplier.toFixed(
+              //     2
+              //   )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
+              //   "success"
+              // );
+              // setBalance((prev) => prev + cashOutAmount,  'with_balance');
             } else {
               showNotification(
                 `Auto cashout (unauthenticated) at ${multiplier.toFixed(
