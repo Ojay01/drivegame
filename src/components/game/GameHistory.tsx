@@ -101,8 +101,7 @@ useEffect(() => {
       return liveGames;
     } else if (activeTab === "topbets") {
       // Show top 10 bets with high multiplier and status won
-      return games
-        .filter(game => game.result === "won" && game.score && game.score > 0)
+      return liveGames
         .sort((a, b) => (b.score || 0) - (a.score || 0))
         .slice(0, 25);
     }

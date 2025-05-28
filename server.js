@@ -93,10 +93,10 @@ function startGameCycle(io, history) {
           if (history.length > 25) history.pop();
           io.emit('history', { type: 'history', items: history });
           
-          setTimeout(runGameCycle, 3000);
+          setTimeout(runGameCycle, 1500);
         }
       }, 50);
-    }, 3000);
+    }, 6000);
   };
 
   // Function to generate crash point with 30/70 house edge

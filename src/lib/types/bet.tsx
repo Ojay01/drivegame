@@ -19,7 +19,8 @@ export interface BetControlProps {
   gameState: string;
   multiplier: number;
   balance: number;
-  setBalance: React.Dispatch<React.SetStateAction<number>>;
+    setBalance: (val: number | ((prev: number) => number), walletType?: WalletType) => void;
+
   onUpdate: (updatedBet: Bet) => void;
   onRemove: () => void;
   onActivate: () => void;
@@ -86,7 +87,7 @@ export interface GameHistoryItem {
 
 export interface GameContextType {
   balance: number;
-  setBalance: React.Dispatch<React.SetStateAction<number>>;
+  setBalance: (val: number | ((prev: number) => number), walletType?: WalletType) => void;
   betAmount: number;
   setBetAmount: React.Dispatch<React.SetStateAction<number>>;
   autoCashOut: number;

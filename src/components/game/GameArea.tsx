@@ -1,6 +1,6 @@
 "use client";
 import React, { useRef, useEffect, useState } from "react";
-import { Gauge, Flame, TrendingUp } from "lucide-react";
+import { Gauge, Flame, TrendingUp, Clock } from "lucide-react";
 import CarSVG from "@/components/car";
 import { useGameContext } from "./GameContext";
 import CrashedCarSVG from "../crashed-car";
@@ -11,6 +11,7 @@ const SOUND_URLS = {
   driving: "/sounds/driving.mp3", // Engine revving sound
   crashed: "/sounds/crash.wav", // Crash sound
   cashout: "https://cdn.freesound.org/previews/511/511484_4931062-lq.mp3", // Cash register sound
+  countdown: "https://cdn.freesound.org/previews/316/316847_5123451-lq.mp3", // Countdown beep sound
 };
 
 const GameArea: React.FC = () => {
@@ -20,12 +21,17 @@ const GameArea: React.FC = () => {
   const roadRef = useRef<HTMLDivElement>(null);
   const [carPosition, setCarPosition] = useState<string>("1%");
   const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Countdown state
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [showCountdown, setShowCountdown] = useState(false);
 
   // Sound refs
   const bettingSoundRef = useRef<HTMLAudioElement | null>(null);
   const drivingSoundRef = useRef<HTMLAudioElement | null>(null);
   const crashedSoundRef = useRef<HTMLAudioElement | null>(null);
   const cashoutSoundRef = useRef<HTMLAudioElement | null>(null);
+  const countdownSoundRef = useRef<HTMLAudioElement | null>(null);
   const [soundsLoaded, setSoundsLoaded] = useState(false);
 
   // Initialize sound objects
@@ -35,6 +41,7 @@ const GameArea: React.FC = () => {
     drivingSoundRef.current = new Audio(SOUND_URLS.driving);
     crashedSoundRef.current = new Audio(SOUND_URLS.crashed);
     cashoutSoundRef.current = new Audio(SOUND_URLS.cashout);
+    countdownSoundRef.current = new Audio(SOUND_URLS.countdown);
 
     // Configure sounds
     if (drivingSoundRef.current) {
@@ -51,6 +58,7 @@ const GameArea: React.FC = () => {
         drivingSoundRef,
         crashedSoundRef,
         cashoutSoundRef,
+        countdownSoundRef,
       ].forEach((ref) => {
         if (ref.current) {
           ref.current.pause();
@@ -60,11 +68,47 @@ const GameArea: React.FC = () => {
     };
   }, []);
 
+  // Handle countdown when transitioning from crashed to betting
+  useEffect(() => {
+    if (gameState === "betting") {
+      // Start countdown after crash
+      const startCountdown = () => {
+        setShowCountdown(true);
+        setCountdown(5); // Fixed to 5 seconds
+        
+        const countdownInterval = setInterval(() => {
+          setCountdown((prev) => {
+            if (prev === null || prev <= 1) {
+              clearInterval(countdownInterval);
+              setShowCountdown(false);
+              setCountdown(null);
+              return null;
+            }
+            
+            
+            return prev - 1;
+          });
+        }, 1000);
+      };
+
+      // Start countdown after a brief delay to show crash effect first
+      const crashTimeout = setTimeout(startCountdown, 1500);
+      
+      return () => {
+        clearTimeout(crashTimeout);
+      };
+    } else {
+      // Reset countdown when not in crashed state
+      setShowCountdown(false);
+      setCountdown(null);
+    }
+  }, [gameState]);
+
   // Play sounds based on game state changes
   useEffect(() => {
     if (!soundsLoaded) return;
 
-    // Stop all sounds first
+    // Stop all sounds first (except countdown which is handled separately)
     [bettingSoundRef, drivingSoundRef, crashedSoundRef].forEach((ref) => {
       if (ref.current) {
         ref.current.pause();
@@ -73,7 +117,7 @@ const GameArea: React.FC = () => {
     });
 
     // Play the appropriate sound based on game state
-    if (gameState === "betting" && bettingSoundRef.current) {
+    if (gameState === "betting" && bettingSoundRef.current && !showCountdown) {
       bettingSoundRef.current
         .play()
         .catch((e) => console.log("Sound play error:", e));
@@ -86,7 +130,7 @@ const GameArea: React.FC = () => {
         .play()
         .catch((e) => console.log("Sound play error:", e));
     }
-  }, [gameState, soundsLoaded]);
+  }, [gameState, soundsLoaded, showCountdown]);
 
   // Play cashout sound when user manually cashes out
   const playCashoutSound = () => {
@@ -118,11 +162,10 @@ const GameArea: React.FC = () => {
   }, [multiplier, isInitialized]);
 
   // Update car position based on game state and multiplier
-  // This is the key fix - we now update car position in a separate effect
   useEffect(() => {
     let newPosition: string;
 
-    if (gameState === "betting") {
+    if (gameState === "betting" || showCountdown) {
       newPosition = "1%"; // Starting position
     } else if (gameState === "driving") {
       // Move car based on multiplier progress
@@ -142,10 +185,9 @@ const GameArea: React.FC = () => {
       setCarPosition(newPosition);
     } else {
       // Immediate position update without animation on page load during driving state
-      // Use a short timeout to ensure the DOM has updated
       setTimeout(() => setCarPosition(newPosition), 10);
     }
-  }, [multiplier, gameState, isInitialized]);
+  }, [multiplier, gameState, isInitialized, showCountdown]);
 
   return (
     <div
@@ -162,6 +204,7 @@ const GameArea: React.FC = () => {
             drivingSoundRef,
             crashedSoundRef,
             cashoutSoundRef,
+            countdownSoundRef,
           ].forEach((ref) => {
             if (ref.current) {
               ref.current.muted = !ref.current.muted;
@@ -169,80 +212,22 @@ const GameArea: React.FC = () => {
           });
         }}
       >
-        {/* Sound on/off icon - you can replace with an actual icon */}
+        {/* Sound on/off icon */}
         🔊
       </button>
 
-      {/* Sky with moving clouds when driving */}
-      <div className="absolute inset-0 z-0">
-        <div
-          className={`absolute inset-0 bg-gradient-to-b from-indigo-900 via-blue-800 to-blue-900`}
-        />
-
-        {/* Clouds that move faster during driving state */}
-        <div
-          className={`absolute top-5 left-0 w-full flex justify-between transition-all duration-300 ${
-            gameState === "driving" ? "animate-cloud-move" : ""
-          }`}
-        >
-          <div className="w-24 h-12 bg-white bg-opacity-30 rounded-full filter blur-md"></div>
-          <div className="w-32 h-16 bg-white bg-opacity-20 rounded-full filter blur-md"></div>
-          <div className="w-20 h-10 bg-white bg-opacity-30 rounded-full filter blur-md"></div>
-        </div>
-
-        <div
-          className={`absolute top-20 left-0 w-full flex justify-around transition-all duration-300 ${
-            gameState === "driving" ? "animate-cloud-move-slow" : ""
-          }`}
-        >
-          <div className="w-28 h-14 bg-white bg-opacity-20 rounded-full filter blur-md"></div>
-          <div className="w-20 h-10 bg-white bg-opacity-10 rounded-full filter blur-md"></div>
-          <div className="w-36 h-12 bg-white bg-opacity-20 rounded-full filter blur-md"></div>
-        </div>
-      </div>
-
-      {/* Parallax background elements */}
       <div
-        className={`absolute left-0 bottom-24 w-full h-20 transition-all ${
+        className={`relative w-full h-full transition-all ${
           gameState === "driving" ? "animate-mountains-move" : ""
         }`}
       >
         {/* Mountains in distance */}
-        <div className="absolute bottom-0 left-0 w-full">
-          <svg
-            width="100%"
-            height="40"
-            viewBox="0 0 1200 120"
-            preserveAspectRatio="none"
-          >
-            <path
-              d="M0,0 L0,120 L1200,120 L1200,0 L0,0 Z M0,120 L200,70 L400,100 L600,30 L800,90 L1000,60 L1200,120 L0,120 Z"
-              fill="#0f1729"
-              opacity="0.7"
-            ></path>
-          </svg>
-        </div>
-      </div>
-
-      {/* Buildings in middle distance */}
-      <div
-        className={`absolute left-0 bottom-24 w-full h-24 transition-all ${
-          gameState === "driving" ? "animate-buildings-move" : ""
-        }`}
-      >
-        {/* City skyline */}
-        <div className="absolute bottom-0 left-0 w-full flex space-x-2">
-          {[...Array(20)].map((_, i) => (
-            <div
-              key={i}
-              className="bg-gray-900"
-              style={{
-                width: `${20 + Math.random() * 50}px`,
-                height: `${30 + Math.random() * 60}px`,
-                opacity: 0.8,
-              }}
-            />
-          ))}
+        <div className="absolute inset-0">
+          <img
+            src="/bg.svg"
+            alt="Mountains"
+            className="w-full h-full object-cover"
+          />
         </div>
       </div>
 
@@ -263,9 +248,16 @@ const GameArea: React.FC = () => {
       </div>
 
       {/* Game Status */}
-      {gameState === "crashed" && (
+      {gameState === "crashed" && !showCountdown && (
         <div className="absolute top-4 left-16 z-10 bg-red-900 bg-opacity-80 px-4 py-2 rounded-lg animate-pulse flex items-center">
           <Flame className="mr-2 text-red-400" size={18} />
+        </div>
+      )}
+
+      {showCountdown && (
+        <div className="absolute top-4 left-16 z-10 bg-orange-900 bg-opacity-80 px-4 py-2 rounded-lg flex items-center animate-pulse">
+          <Clock className="mr-2 text-orange-400" size={18} />
+          <span className="text-orange-400 font-bold">Next Round</span>
         </div>
       )}
 
@@ -275,13 +267,13 @@ const GameArea: React.FC = () => {
         </div>
       )}
 
-      {gameState === "betting" && (
+      {gameState === "betting" && !showCountdown && (
         <div className="absolute top-4 left-16 z-10 bg-blue-900 bg-opacity-80 px-4 py-2 rounded-lg flex items-center">
           <TrendingUp className="mr-2 text-blue-400" size={18} />
         </div>
       )}
 
-      {/* Cash Out Button - trigger cash sound */}
+      {/* Cash Out Button */}
       {gameState === "driving" && hasPlacedBet && (
         <button
           className="absolute bottom-4 right-4 z-20 px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg shadow-lg"
@@ -294,13 +286,32 @@ const GameArea: React.FC = () => {
         </button>
       )}
 
+      {/* Countdown Display - Made smaller and more compact */}
+      {showCountdown && countdown !== null && (
+        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-30">
+          <div className="bg-gray-900 bg-opacity-95 px-6 py-4 rounded-xl shadow-2xl border border-orange-500">
+            <div className="text-center">
+              <div className="text-sm font-semibold text-orange-400 mb-2">
+                Next Round
+              </div>
+              <div 
+                className="text-4xl font-mono font-bold text-white animate-pulse"
+                key={countdown} // Force re-render for animation
+              >
+                {countdown}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Animated Road */}
       <div className="absolute bottom-0 w-full h-24 bg-gray-800"></div>
       <div
         ref={roadRef}
         className="absolute bottom-12 w-full h-2 flex"
         style={{
-          width: "200%", // Extended width for smooth animation loop
+          width: "200%",
           left: "0%",
           animation:
             gameState === "driving" ? "roadMove 2s linear infinite" : "none",
@@ -315,9 +326,33 @@ const GameArea: React.FC = () => {
         ))}
       </div>
 
-      {/* Car SVG Positioning - Modified to handle WebSocket state */}
+      {/* Dust effect */}
+      {gameState === "driving" && (
+        <div
+          className="absolute bottom-10 left-0 w-24 h-8 opacity-50 animate-dust will-change-transform"
+          style={{ left: `calc(${carPosition} - 8%)` }}
+        >
+          {[...Array(6)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute bg-gray-300 rounded-full"
+              style={{
+                width: "3px",
+                height: "3px",
+                left: `${Math.random() * 80}px`,
+                top: `${Math.random() * 20}px`,
+                animation: `dustFloat ${
+                  0.8 + Math.random() * 0.4
+                }s linear infinite`,
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Car SVG Positioning */}
       <div
-        className="absolute"
+        className="absolute z-10"
         style={{
           left: carPosition,
           bottom: "30px",
@@ -326,26 +361,47 @@ const GameArea: React.FC = () => {
           }) scale(0.6)`,
           transformOrigin: "center center",
           transition: isInitialized ? "all 0.5s ease-out" : "none",
+          filter:
+            gameState === "crashed"
+              ? "drop-shadow(0 0 8px rgba(255, 0, 0, 0.6))"
+              : "drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))",
+          willChange: "transform, filter",
         }}
       >
         {gameState === "crashed" ? <CrashedCarSVG /> : <CarSVG />}
       </div>
 
       {/* Crash Effect */}
-      {gameState === "crashed" && (
-        <div className="absolute inset-0 bg-red-500 bg-opacity-30 flex items-center justify-center">
-          <div className="bg-black bg-opacity-70 px-8 py-4 rounded-lg shadow-lg">
-            <div className="text-3xl font-bold text-red-500 animate-pulse mb-1">
-              CRASHED
+      {gameState === "crashed" && !showCountdown && (
+        <div className="absolute inset-0 bg-red-600 bg-opacity-25 flex items-center justify-center">
+          <div className="bg-black bg-opacity-80 px-8 py-5 rounded-xl shadow-2xl border border-red-500">
+            <div className="text-3xl font-bold text-red-400 animate-pulse mb-2">
+              CRASHED!
             </div>
             <div className="text-xl font-mono text-center text-white">
               {multiplier.toFixed(2)}x
             </div>
           </div>
+          {/* Spark Particles */}
+          <div className="absolute w-full h-full">
+            {[...Array(8)].map((_, i) => (
+              <div
+                key={i}
+                className="absolute bg-yellow-300 rounded-full"
+                style={{
+                  width: "2px",
+                  height: "2px",
+                  left: `calc(50% + ${Math.random() * 80 - 40}px)`,
+                  top: `calc(50% + ${Math.random() * 80 - 40}px)`,
+                  animation: `spark ${0.4 + Math.random() * 0.3}s ease-out`,
+                }}
+              />
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Add this to your global CSS file or styles */}
+      {/* CSS Animations */}
       <style jsx>{`
         @keyframes roadMove {
           0% {

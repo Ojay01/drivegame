@@ -1,4 +1,3 @@
-
 import { Minus, Plus, X, ChevronDown, ChevronUp } from "lucide-react";
 
 import { BetControlProps, showNotification } from "@/lib/types/bet";
@@ -23,8 +22,6 @@ const BetControl: React.FC<BetControlProps> = ({
 
   // Determine if controls should be disabled
   const isControlsDisabled = bet.hasPlacedBet || bet.pendingBet;
-
-  
 
   const updateBetAmount = (change: number): void => {
     if (isControlsDisabled) return;
@@ -108,7 +105,7 @@ const BetControl: React.FC<BetControlProps> = ({
       isAutoCashOutEnabled: !bet.isAutoCashOutEnabled,
     });
     // showNotification(
-      // bet.isAutoCashOutEnabled
+    // bet.isAutoCashOutEnabled
     //      "Auto Cash Out enabled"
     //     : "Auto Cash Out disabled",
     //   "info"
@@ -156,54 +153,58 @@ const BetControl: React.FC<BetControlProps> = ({
     }
   };
 
-
   const placeBet = async (): Promise<void> => {
-  const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
+    const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
 
-  if (betAmount <= 0) {
-    // showNotification("Invalid bet amount.", "error");
-    return;
-  }
-
-  // Can place immediately if in betting phase and has enough balance
-  if (gameState === "betting" && balance >= betAmount) {
-    if (!walletType) {
-      // showNotification("Wallet type is not selected.", "error");
+    if (betAmount <= 0) {
+      // showNotification("Invalid bet amount.", "error");
       return;
     }
 
-    try {
-      const res = await startGame(betAmount, walletType, authToken ?? "");
-      const newBalance = res[walletType];
-      const newGameId = res.game_id;
+    // Can place immediately if in betting phase and has enough balance
+    if (gameState === "betting" && balance >= betAmount) {
+      if (!walletType) {
+        // showNotification("Wallet type is not selected.", "error");
+        return;
+      }
 
-      setBalance(newBalance);
+      try {
+        const res = await startGame(betAmount, walletType, authToken ?? "");
+        const newBalance = res[walletType];
+        const newGameId = res.game_id;
 
-      onUpdate({
-        ...bet,
-        hasPlacedBet: true,
-        pendingBet: false,
-        gameId: newGameId,
-      });
+        setBalance(newBalance);
 
-      // showNotification("Bet placed successfully!", "success");
-    } catch (error) {
-      console.error("Failed to place bet:", error);
-      // showNotification("Failed to place bet. Please try again.", "error");
+        onUpdate({
+          ...bet,
+          hasPlacedBet: true,
+          pendingBet: false,
+          gameId: newGameId,
+        });
+
+        // showNotification("Bet placed successfully!", "success");
+      } catch (error) {
+        console.error("Failed to place bet:", error);
+        // showNotification("Failed to place bet. Please try again.", "error");
+        onUpdate({
+          ...bet,
+          pendingBet: false,
+          hasPlacedBet: true,
+          gameId: 0, // or null, since there's no server gameId
+        });
+      }
+
+      return;
     }
 
-    return;
-  }
+    // Otherwise, mark bet as pending for next round
+    onUpdate({
+      ...bet,
+      pendingBet: true,
+    });
 
-  // Otherwise, mark bet as pending for next round
-  onUpdate({
-    ...bet,
-    pendingBet: true,
-  });
-
-  // showNotification("Bet queued for next round!", "info");
-};
-
+    // showNotification("Bet queued for next round!", "info");
+  };
 
   // Updated cancelBet to turn off AutoBet as well
   const cancelBet = (): void => {
@@ -224,64 +225,61 @@ const BetControl: React.FC<BetControlProps> = ({
     // showNotification("Bet cancelled and Auto Bet disabled!", "info");
   };
 
-
   const cashOut = (): void => {
-  const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
-  const cashOutAmount = betAmount * multiplier;
+    const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
+    const cashOutAmount = betAmount * multiplier;
 
-  if (betAmount < 1) {
-    showNotification("Invalid bet amount for cashout", "error");
-    return;
-  }
+    if (betAmount < 1) {
+      showNotification("Invalid bet amount for cashout", "error");
+      return;
+    }
 
-  if (authToken) {
-    // Real cashout for authenticated users
-    cashoutAPI(cashOutAmount, authToken, multiplier, bet.gameId)
-      .then((response) => {
-        onUpdate({
-          ...bet,
-          hasPlacedBet: false,
-          pendingBet: bet.isAutoBetEnabled,
+    if (authToken) {
+      // Real cashout for authenticated users
+      cashoutAPI(cashOutAmount, authToken, multiplier, bet.gameId)
+        .then((response) => {
+          onUpdate({
+            ...bet,
+            hasPlacedBet: false,
+            pendingBet: bet.isAutoBetEnabled,
+          });
+
+          showNotification(
+            `Cashed out at ${multiplier.toFixed(
+              2
+            )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
+            "success"
+          );
+
+          if (bet.isAutoBetEnabled) {
+            // showNotification("Next bet queued automatically", "info");
+          }
+          setBalance((prev) => prev + cashOutAmount, "with_balance");
+        })
+        .catch((error) => {
+          console.error("❌ Cashout failed", error);
+          showNotification("Cashout failed. Please try again.", "error");
         });
-
-        showNotification(
-          `Cashed out at ${multiplier.toFixed(
-            2
-          )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
-          "success"
-        );
-
-        if (bet.isAutoBetEnabled) {
-          // showNotification("Next bet queued automatically", "info");
-        }
-
-        // Optionally: setBalance(response.balance);
-      })
-      .catch((error) => {
-        console.error("❌ Cashout failed", error);
-        showNotification("Cashout failed. Please try again.", "error");
+    } else {
+      // Simulated cashout for unauthenticated users
+      onUpdate({
+        ...bet,
+        hasPlacedBet: false,
+        pendingBet: bet.isAutoBetEnabled,
       });
-  } else {
-    // Simulated cashout for unauthenticated users
-    onUpdate({
-      ...bet,
-      hasPlacedBet: false,
-      pendingBet: bet.isAutoBetEnabled,
-    });
 
-    showNotification(
-      `Auto cashout (unauthenticated) at ${multiplier.toFixed(
-        2
-      )}x! Simulated win of ${cashOutAmount.toFixed(2)} XAF`,
-      "success"
-    );
-
-    // if (bet.isAutoBetEnabled) {
-    //   showNotification("Next bet queued automatically", "info");
-    // }
-  }
-};
-
+      showNotification(
+        `Auto cashout (unauthenticated) at ${multiplier.toFixed(
+          2
+        )}x! Simulated win of ${cashOutAmount.toFixed(2)} XAF`,
+        "success"
+      );
+      setBalance((prev) => prev + cashOutAmount);
+      // if (bet.isAutoBetEnabled) {
+      //   showNotification("Next bet queued automatically", "info");
+      // }
+    }
+  };
 
   // Determine button state
   const getButtonState = () => {

@@ -228,6 +228,7 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
                 )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
                 "success"
               );
+              setBalance((prev) => prev + cashOutAmount,  'with_balance');
             } else {
               showNotification(
                 `Auto cashout (unauthenticated) at ${multiplier.toFixed(
@@ -236,7 +237,7 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
                 "info"
               );
             }
-
+            setBalance((prev) => prev + cashOutAmount,  'with_balance');
             updatedBets[index] = {
               ...bet,
               hasPlacedBet: false,
@@ -406,7 +407,7 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
                                focus:ring-purple-500 focus:border-transparent appearance-none 
                                cursor-pointer pr-10 transition-all duration-200"
                     >
-                      <option value="">-- Select Wallet --</option>
+                      <option value="" disabled>-- Select Wallet --</option>
                       <option value="balance">Deposit Wallet</option>
                       <option value="bonus">Bonus Wallet</option>
                       <option value="with_balance">Withdrawable Wallet</option>

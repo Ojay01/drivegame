@@ -8,7 +8,7 @@ import React, {
 } from "react";
 // import { useGameEngine } from "../game/engine";
 import toast from "react-hot-toast"; // Import toast
-import { GameContextType, GameHistoryItem, GameState } from "@/lib/types/bet";
+import { GameContextType, GameHistoryItem, GameState, WalletType } from "@/lib/types/bet";
 import { useGameSocket } from "./GameSocket";
 import { getBalance } from "./apiActions";
 import { useSearchParams } from "next/navigation";
@@ -218,11 +218,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
     setAutoCashOut((prev) => Math.max(1.1, Number((prev + amount).toFixed(2))));
   };
 
-  const setBalance = (val: number | ((prev: number) => number)) => {
-    setWallets((prev) => {
-      const updated = typeof val === "function" ? val(prev[walletType]) : val;
-      return { ...prev, [walletType]: updated };
-    });
+  const setBalance = (val: number | ((prev: number) => number), type?: WalletType) => {
+  setWallets(prev => {
+    const key = type ?? walletType; // use provided type or fallback to current walletType
+    const updated = typeof val === 'function' ? val(prev[key]) : val;
+    return { ...prev, [key]: updated };
+  });
   };
 
   // Handle pending bets when game state changes
