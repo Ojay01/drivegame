@@ -92,6 +92,17 @@ useEffect(() => {
   };
 }, [authToken]);
 
+  // Calculate statistics for live games
+  const liveStats = useMemo(() => {
+    const totalCashoutCount = liveGames.filter(game => game.result === "won").length;
+    const totalLiveCount = liveGames.length;
+    
+    return {
+      totalCashoutCount,
+      totalLiveCount
+    };
+  }, [liveGames]);
+
   // Filter games based on active tab
   const filteredGames = useMemo(() => {
     if (activeTab === "personal" && authUserId) {
@@ -100,13 +111,13 @@ useEffect(() => {
       // Show all games for global tab (playing, won, lost)
       return liveGames;
     } else if (activeTab === "topbets") {
-      // Show top 10 bets with high multiplier and status won
+      // Show top 25 bets sorted by bet amount (stake) in descending order
       return liveGames
-        .sort((a, b) => (b.score || 0) - (a.score || 0))
+        .sort((a, b) => (b.stake || 0) - (a.stake || 0))
         .slice(0, 25);
     }
     return games;
-  }, [games, activeTab, authUserId]);
+  }, [games, activeTab, authUserId, liveGames]);
 
   // Helper function to get multiplier color
   const getMultiplierColor = (score: number | null | undefined) => {
@@ -183,9 +194,20 @@ useEffect(() => {
 
   return (
     <div className="bg-gray-800 rounded-lg p-3 sm:p-4 h-full shadow-lg">
-      <div className="flex items-center mb-4 border-b border-gray-700 pb-2">
-        <History className="mr-2 text-blue-400 flex-shrink-0" size={20} />
-        <h3 className="font-medium text-base sm:text-lg truncate">Game History</h3>
+      <div className="flex items-center justify-between mb-4 border-b border-gray-700 pb-2">
+        <div className="flex items-center">
+          <History className="mr-2 text-blue-400 flex-shrink-0" size={20} />
+          <h3 className="font-medium text-base sm:text-lg truncate">Game History</h3>
+        </div>
+        
+        {/* Live Statistics */}
+        <div className="flex items-center text-xs sm:text-sm overflow-hidden">
+          <div className="flex items-center text-gray-300 whitespace-nowrap">
+            <span className="font-mono text-green-400">{liveStats.totalCashoutCount}</span>
+            <span className="mx-1 text-gray-500">/</span>
+            <span className="font-mono text-orange-400">{liveStats.totalLiveCount}</span>
+          </div>
+        </div>
       </div>
       
       {/* Tab Navigation */}
@@ -289,7 +311,7 @@ useEffect(() => {
             {activeTab === "personal" 
               ? "You haven't placed any bets yet."
               : activeTab === "topbets"
-              ? "No winning bets found."
+              ? "No live bets found."
               : "No active games found."}
           </div>
         )}

@@ -8,6 +8,9 @@ const app = next({ dev });
 const handle = app.getRequestHandler();
 const PORT = process.env.PORT || 3000;
 
+
+  let gameState = 'betting'; // Initial game state
+  let multiplier = 1; // Initial multiplier
 app.prepare().then(() => {
   const server = createServer((req, res) => {
     const parsedUrl = parse(req.url, true);
@@ -24,10 +27,12 @@ app.prepare().then(() => {
 
   const history = [];
 
+
   io.on('connection', (socket) => {
     console.log('Client connected');
     
       socket.emit('history', { type: 'history', items: history });
+        socket.emit('game_state', { type: 'game_state', state: gameState });
 
     socket.on('place_bet', (data) => {
       console.log('Bet placed:', data);
@@ -53,8 +58,8 @@ app.prepare().then(() => {
 });
 
 function startGameCycle(io, history) {
-  let gameState = 'betting';
-  let multiplier = 1;
+  // let gameState = 'betting';
+  // let multiplier = 1;
   let crashPoint = 0;
 
   const runGameCycle = () => {

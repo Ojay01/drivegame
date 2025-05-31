@@ -19,8 +19,13 @@ const GameArea: React.FC = () => {
 
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const roadRef = useRef<HTMLDivElement>(null);
-  const [carPosition, setCarPosition] = useState<string>("1%");
+  const [carPosition, setCarPosition] = useState<string>(() => {
+    // Initialize car position based on initial game state
+    // If page loads during driving state, start at 50% to avoid animation from 1%
+    return gameState == "driving" ? "50%" : "1%";
+  });
   const [isInitialized, setIsInitialized] = useState(false);
+  const [hasGameStateChanged, setHasGameStateChanged] = useState(false);
   
   // Countdown state
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -33,6 +38,9 @@ const GameArea: React.FC = () => {
   const cashoutSoundRef = useRef<HTMLAudioElement | null>(null);
   const countdownSoundRef = useRef<HTMLAudioElement | null>(null);
   const [soundsLoaded, setSoundsLoaded] = useState(false);
+
+  // Track initial game state to detect if it's a page reload during driving
+  const [initialGameState] = useState(gameState);
 
   // Initialize sound objects
   useEffect(() => {
@@ -68,6 +76,13 @@ const GameArea: React.FC = () => {
     };
   }, []);
 
+  // Track when game state changes from initial state
+  useEffect(() => {
+    if (gameState !== initialGameState) {
+      setHasGameStateChanged(true);
+    }
+  }, [gameState, initialGameState]);
+
   // Handle countdown when transitioning from crashed to betting
   useEffect(() => {
     if (gameState === "betting") {
@@ -84,7 +99,6 @@ const GameArea: React.FC = () => {
               setCountdown(null);
               return null;
             }
-            
             
             return prev - 1;
           });
@@ -177,17 +191,21 @@ const GameArea: React.FC = () => {
       newPosition = "1%"; // Default position
     }
 
-    // Only animate if initialized or not in driving state
-    const shouldAnimate = isInitialized || gameState !== "driving";
+    // Determine if we should animate the transition
+    const shouldAnimate = 
+      isInitialized || // Component is initialized
+      hasGameStateChanged || // Game state has changed from initial
+      gameState !== "driving" || // Not in driving state
+      initialGameState !== "driving"; // Didn't start in driving state
 
     if (shouldAnimate) {
-      // Normal transition
+      // Normal transition with animation
       setCarPosition(newPosition);
     } else {
-      // Immediate position update without animation on page load during driving state
+      // Immediate position update without animation (page reload during driving)
       setTimeout(() => setCarPosition(newPosition), 10);
     }
-  }, [multiplier, gameState, isInitialized, showCountdown]);
+  }, [multiplier, gameState, isInitialized, showCountdown, hasGameStateChanged, initialGameState]);
 
   return (
     <div
@@ -360,7 +378,10 @@ const GameArea: React.FC = () => {
             gameState === "driving" ? "0deg" : "0deg"
           }) scale(0.6)`,
           transformOrigin: "center center",
-          transition: isInitialized ? "all 0.5s ease-out" : "none",
+          transition: 
+            isInitialized || hasGameStateChanged || gameState !== "driving" || initialGameState !== "driving"
+              ? "all 0.5s ease-out" 
+              : "none",
           filter:
             gameState === "crashed"
               ? "drop-shadow(0 0 8px rgba(255, 0, 0, 0.6))"

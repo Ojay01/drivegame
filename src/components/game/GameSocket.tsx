@@ -92,6 +92,6 @@ export const useGameSocket = () => {
     socketGameState,
     socketHistory,
     socketCrashPoint,
-    sendMessage
+    sendMessage,
   };
 };

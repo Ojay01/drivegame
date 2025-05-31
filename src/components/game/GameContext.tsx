@@ -8,7 +8,12 @@ import React, {
 } from "react";
 // import { useGameEngine } from "../game/engine";
 import toast from "react-hot-toast"; // Import toast
-import { GameContextType, GameHistoryItem, GameState, WalletType } from "@/lib/types/bet";
+import {
+  GameContextType,
+  GameHistoryItem,
+  GameState,
+  WalletType,
+} from "@/lib/types/bet";
 import { useGameSocket } from "./GameSocket";
 import { getBalance } from "./apiActions";
 import { useSearchParams } from "next/navigation";
@@ -56,15 +61,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
   const currentBetRef = useRef<number>(0);
   const [authToken, setAuthToken] = useState<string | null>(null);
 
-
   useEffect(() => {
-  if (typeof window !== "undefined") {
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get("authToken");
-    setAuthToken(token);
-  }
-}, []);
-
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get("authToken");
+      setAuthToken(token);
+    }
+  }, []);
 
   useEffect(() => {
     if (authToken) {
@@ -90,27 +93,27 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
     socketGameState,
     socketHistory,
     // socketCrashPoint,
+    connected,
     sendMessage,
   } = useGameSocket();
 
   // Update local state when socket data changes
   useEffect(() => {
-    if (socketMultiplier !== null) {
-      setMultiplier(socketMultiplier);
-    }
-  }, [socketMultiplier]);
+    if (!connected || socketMultiplier === null) return;
+    setMultiplier(socketMultiplier);
+  }, [socketMultiplier, connected]);
 
   useEffect(() => {
-    if (socketGameState !== null) {
+    if (!connected || socketGameState === null) return;
+      // alert("Game state updated: " + socketGameState);
       setGameState(socketGameState);
-    }
-  }, [socketGameState]);
+ 
+  }, [socketGameState, connected]);
 
   useEffect(() => {
-    if (socketHistory !== null) {
-      setHistory(socketHistory);
-    }
-  }, [socketHistory]);
+    if (!connected || socketHistory === null) return;
+    setHistory(socketHistory);
+  }, [socketHistory, connected]);
 
   // Calculate car position based on multiplier and game state
   useEffect(() => {
@@ -218,12 +221,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
     setAutoCashOut((prev) => Math.max(1.1, Number((prev + amount).toFixed(2))));
   };
 
-  const setBalance = (val: number | ((prev: number) => number), type?: WalletType) => {
-  setWallets(prev => {
-    const key = type ?? walletType; // use provided type or fallback to current walletType
-    const updated = typeof val === 'function' ? val(prev[key]) : val;
-    return { ...prev, [key]: updated };
-  });
+  const setBalance = (
+    val: number | ((prev: number) => number),
+    type?: WalletType
+  ) => {
+    setWallets((prev) => {
+      const key = type ?? walletType; // use provided type or fallback to current walletType
+      const updated = typeof val === "function" ? val(prev[key]) : val;
+      return { ...prev, [key]: updated };
+    });
   };
 
   // Handle pending bets when game state changes
