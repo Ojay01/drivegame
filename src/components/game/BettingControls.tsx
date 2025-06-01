@@ -56,6 +56,12 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
 
             if (balance >= betAmount) {
               // Deduct balance locally
+              updatedBets[i] = {
+          ...bet,
+          pendingBet: false,
+          hasPlacedBet: true,
+          gameId: gameId || 0, // Use current gameId or fallback to 0
+        };
               setBalance((prev) => prev - betAmount);
 
               // showNotification(
