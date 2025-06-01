@@ -41,7 +41,7 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
   const [activeBetIndex, setActiveBetIndex] = useState<number>(0);
 
   useEffect(() => {
-    if (prevGameState !== "betting" && gameState === "betting") {
+    if (prevGameState !== "lockbets" && gameState === "lockbets") {
       // Process all pending bets when entering betting phase
       const processBets = async () => {
         // Create a copy of bets to update

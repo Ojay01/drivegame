@@ -19,6 +19,7 @@ const BetControl: React.FC<BetControlProps> = ({
   walletType,
 }) => {
   const quickAmounts = [10.0, 20.0, 50.0, 100.0];
+  
 
   // Determine if controls should be disabled
   const isControlsDisabled = bet.hasPlacedBet || bet.pendingBet;
@@ -162,7 +163,7 @@ const BetControl: React.FC<BetControlProps> = ({
     }
 
     // Can place immediately if in betting phase and has enough balance
-    if (gameState === "betting" && balance >= betAmount) {
+    if (gameState === "lockbets" && balance >= betAmount) {
       if (!walletType) {
         // showNotification("Wallet type is not selected.", "error");
         return;

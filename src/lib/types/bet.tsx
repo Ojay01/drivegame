@@ -76,7 +76,7 @@ export const showNotification = (
 };
 
 // Define types
-export type GameState = "betting" | "driving" | "crashed" | "waiting";
+export type GameState = "betting" | "driving" | "crashed" | "waiting" | "lockbets";
 
 export interface GameHistoryItem {
   multiplier: string;
