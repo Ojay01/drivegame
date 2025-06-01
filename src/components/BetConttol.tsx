@@ -65,25 +65,13 @@ const BetControl: React.FC<BetControlProps> = ({
     }
   };
 
-  const updateAutoCashOut = (change: number): void => {
-    if (isControlsDisabled) return;
-
-    const currentValue =
-      typeof bet.autoCashOut === "number" ? bet.autoCashOut : 1.1;
-    const newValue = Math.max(1.1, currentValue + change);
-    onUpdate({
-      ...bet,
-      autoCashOut: Math.round(newValue * 100) / 100,
-    });
-  };
-
-  const handleAutoCashOutInput = (
+    const handleAutoCashOutInput = (
     e: React.ChangeEvent<HTMLInputElement>
   ): void => {
     if (isControlsDisabled) return;
 
     const value = parseFloat(e.target.value);
-    if (!isNaN(value) && value >= 1.1) {
+    if (!isNaN(value) && value >= 1) {
       onUpdate({
         ...bet,
         autoCashOut: value,
@@ -95,6 +83,18 @@ const BetControl: React.FC<BetControlProps> = ({
         autoCashOut: "",
       });
     }
+  };
+
+  const updateAutoCashOut = (change: number): void => {
+    if (isControlsDisabled) return;
+
+    const currentValue =
+      typeof bet.autoCashOut === "number" ? bet.autoCashOut : 1.1;
+    const newValue = Math.max(1.1, currentValue + change);
+    onUpdate({
+      ...bet,
+      autoCashOut: Math.round(newValue * 100) / 100,
+    });
   };
 
   const toggleAutoCashOut = (): void => {
@@ -246,7 +246,8 @@ const BetControl: React.FC<BetControlProps> = ({
       hasPlacedBet: false,
       pendingBet: bet.isAutoBetEnabled,
     });
-    setBalance((prev) => prev + cashOutAmount, "with_balance");
+     setBalance((prev) => prev + cashOutAmount, walletType === 'commissions' ? 'commissions' : 'with_balance');
+
     showNotification(
       `Cashed out at ${multiplier.toFixed(2)}x! Won ${cashOutAmount.toFixed(
         2

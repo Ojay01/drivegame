@@ -16,7 +16,7 @@ import {
 } from "@/lib/types/bet";
 import { useGameSocket } from "./GameSocket";
 import { getBalance } from "./apiActions";
-import { useSearchParams } from "next/navigation";
+// import { useSearchParams } from "next/navigation";
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
@@ -44,16 +44,18 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
     y: 150,
   });
   const [walletType, setWalletType] = useState<
-    "balance" | "bonus" | "with_balance"
+   WalletType
   >("balance");
   const [wallets, setWallets] = useState<{
     balance: number;
     bonus: number;
     with_balance: number;
+    commissions: number;
   }>({
     balance: 0,
     bonus: 0,
     with_balance: 0,
+    commissions: 0,
   });
 
   // Replace old balance state
@@ -77,14 +79,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
             balance: res.balance ?? 0,
             bonus: res.bonus ?? 0,
             with_balance: res.with_balance ?? 0,
+            commissions: res.commissions ?? 0,
           });
         })
         .catch(() => {
           // fallback values
-          setWallets({ balance: 1000, bonus: 0, with_balance: 0 });
+          setWallets({ balance: 1000, bonus: 0, with_balance: 0, commissions: 0 });
         });
     }
-    setWallets({ balance: 1000, bonus: 750, with_balance: 500 });
+    setWallets({ balance: 1000, bonus: 750, with_balance: 500, commissions: 250 });
   }, [authToken]);
 
   // Connect to WebSocket

@@ -245,7 +245,8 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
                 "info"
               );
             }
-            setBalance((prev) => prev + cashOutAmount,  'with_balance');
+            setBalance((prev) => prev + cashOutAmount, walletType === 'commissions' ? 'commissions' : 'with_balance');
+
             updatedBets[index] = {
               ...bet,
               hasPlacedBet: false,
@@ -419,6 +420,7 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
                       <option value="balance">Deposit Wallet</option>
                       <option value="bonus">Bonus Wallet</option>
                       <option value="with_balance">Withdrawable Wallet</option>
+                      <option value="commissions">Commissions Wallet</option>
                     </select>
                     <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
                       <svg

@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useEffect } from "react";
-import { History, Users, Trophy, TrendingUp } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { History, Users, Trophy, TrendingUp, ArrowUpDown } from "lucide-react";
 import { getGames } from "./apiActions";
 import { Game } from "@/lib/types/apitypes";
 
@@ -21,6 +21,7 @@ const GameHistory: React.FC<GameHistoryProps> = ({
   const [authUserId, setAuthUserId] = useState<number | null>(null);
   const [lastClearSession, setLastClearSession] = useState<boolean>(false);
   const [liveGames, setLiveGames] = useState<Game[]>([]);
+  const [showPersonalTopBets, setShowPersonalTopBets] = useState<boolean>(false);
 
 useEffect(() => {
   if (clearSession && !lastClearSession) {
@@ -106,7 +107,14 @@ useEffect(() => {
   // Filter games based on active tab
   const filteredGames = useMemo(() => {
     if (activeTab === "personal" && authUserId) {
-      return games.filter(game => String(game.user_id) === String(authUserId));
+      const personalGames = games.filter(game => String(game.user_id) === String(authUserId));
+      
+      // Sort by stake if showPersonalTopBets is enabled
+      if (showPersonalTopBets) {
+        return personalGames.sort((a, b) => (b.stake || 0) - (a.stake || 0));
+      }
+      
+      return personalGames;
     } else if (activeTab === "global") {
       // Show all games for global tab (playing, won, lost)
       return liveGames;
@@ -117,7 +125,7 @@ useEffect(() => {
         .slice(0, 25);
     }
     return games;
-  }, [games, activeTab, authUserId, liveGames]);
+  }, [games, activeTab, authUserId, liveGames, showPersonalTopBets]);
 
   // Helper function to get multiplier color
   const getMultiplierColor = (score: number | null | undefined) => {
@@ -246,6 +254,23 @@ useEffect(() => {
           <span className="text-sm sm:text-base">My History</span>
         </button>
       </div>
+
+      {/* Personal Top Bets Toggle - Only show when on personal tab */}
+      {activeTab === "personal" && (
+        <div className="flex justify-end mb-3">
+          <button
+            onClick={() => setShowPersonalTopBets(!showPersonalTopBets)}
+            className={`flex items-center px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
+              showPersonalTopBets
+                ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                : "bg-gray-700/50 text-gray-400 border border-gray-600/30 hover:bg-gray-700 hover:text-gray-300"
+            }`}
+          >
+            <ArrowUpDown size={14} className="mr-1.5" />
+            Top Bets
+          </button>
+        </div>
+      )}
       
       <div className="max-h-96 sm:max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600">
         {filteredGames.length > 0 ? (

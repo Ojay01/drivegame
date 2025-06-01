@@ -1,9 +1,10 @@
 import { createApiClient } from "@/lib/api";
 import { BalanceResponse, GetGamesResponse } from "@/lib/types/apitypes";
+import { WalletType } from "@/lib/types/bet";
 
 export const startGame = async (
   stake: number,
-  walletType: "balance" | "with_balance" | "bonus",
+  walletType: WalletType,
   authToken: string
 ) => {
   const api = createApiClient(authToken);

@@ -1,5 +1,5 @@
 import toast from "react-hot-toast"; // Import toast
-export type WalletType = "balance" | "bonus" | "with_balance";
+export type WalletType = "balance" | "bonus" | "with_balance" | "commissions";
 export interface Bet {
   id: number;
   amount: number | string;
@@ -20,7 +20,6 @@ export interface BetControlProps {
   multiplier: number;
   balance: number;
     setBalance: (val: number | ((prev: number) => number), walletType?: WalletType) => void;
-
   onUpdate: (updatedBet: Bet) => void;
   onRemove: () => void;
   onActivate: () => void;
