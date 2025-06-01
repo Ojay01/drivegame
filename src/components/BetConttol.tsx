@@ -305,7 +305,7 @@ const BetControl: React.FC<BetControlProps> = ({
   // Determine button state
   const getButtonState = () => {
     // If game is driving and this bet is active
-    if (gameState === "driving" && bet.hasPlacedBet) {
+    if ((gameState === "driving" || gameState === "lockbets") && bet.hasPlacedBet) {
       const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
       const potentialWin = betAmount * multiplier;
       return {
