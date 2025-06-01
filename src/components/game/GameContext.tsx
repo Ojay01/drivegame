@@ -81,6 +81,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
             with_balance: res.with_balance ?? 0,
             commissions: res.commissions ?? 0,
           });
+
+          console.log("Wallets updated:", {commissions: res.commissions, balance: res.balance, bonus: res.bonus, with_balance: res.with_balance});
         })
         .catch(() => {
           // fallback values

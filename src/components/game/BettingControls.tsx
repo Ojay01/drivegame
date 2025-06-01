@@ -220,7 +220,8 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
                 )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
                 "success"
               );
-              setBalance((prev) => prev + cashOutAmount,  'with_balance');
+              // setBalance((prev) => prev + cashOutAmount,  'with_balance');
+                  setBalance((prev) => prev + cashOutAmount, walletType === 'commissions' ? 'commissions' : 'with_balance');
 
           try {
             if (authToken) {
@@ -448,7 +449,7 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
                       Current Balance:
                     </span>
                     <span className="text-lg font-bold text-white">
-                       {(balance ?? 0).toFixed(2)} XAF
+                      {balance.toFixed(2)} XAF
                     </span>
                   </div>
                   <div className="h-1 w-full bg-gray-700 mt-3 rounded-full overflow-hidden">
