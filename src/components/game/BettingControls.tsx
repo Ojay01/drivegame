@@ -416,7 +416,7 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
                                focus:ring-purple-500 focus:border-transparent appearance-none 
                                cursor-pointer pr-10 transition-all duration-200"
                     >
-                      <option value="" disabled>-- Select Wallet --</option>
+                      {/* <option value="" disabled>-- Select Wallet --</option> */}
                       <option value="balance">Deposit Wallet</option>
                       <option value="bonus">Bonus Wallet</option>
                       <option value="with_balance">Withdrawable Wallet</option>
@@ -448,7 +448,7 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
                       Current Balance:
                     </span>
                     <span className="text-lg font-bold text-white">
-                        {(balance ?? 0).toFixed(2)} XAF
+                      {balance.toFixed(2)} XAF
                     </span>
                   </div>
                   <div className="h-1 w-full bg-gray-700 mt-3 rounded-full overflow-hidden">
