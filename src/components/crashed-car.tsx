@@ -57,7 +57,7 @@ const CrashedCarSVG = ({
       {animate && animationType !== "rotate" && (
         <style>{animationStyles}</style>
       )}
-      {/* <g transform="translate(-50, 0)"> */}
+      <g transform="translate(-50, 0)">
         <svg
           version="1.1"
           xmlns="http://www.w3.org/2000/svg"
@@ -865,7 +865,7 @@ const CrashedCarSVG = ({
             transform="translate(94,67)"
           />
         </svg>
-      {/* </g> */}
+      </g>
     </>
   );
 };

@@ -417,7 +417,7 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
                                focus:ring-purple-500 focus:border-transparent appearance-none 
                                cursor-pointer pr-10 transition-all duration-200"
                     >
-                      {/* <option value="" disabled>-- Select Wallet --</option> */}
+                      <option value="" disabled>-- Select Wallet --</option>
                       <option value="balance">Deposit Wallet</option>
                       <option value="bonus">Bonus Wallet</option>
                       <option value="with_balance">Withdrawable Wallet</option>
