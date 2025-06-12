@@ -44,7 +44,7 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
     if (prevGameState !== "lockbets" && gameState === "lockbets") {
       // Process all pending bets when entering betting phase
 
- const processBets = async () => {
+const processBets = async () => {
   let updatedBets = [...bets];
   const pendingBets = updatedBets.filter((bet) => bet.pendingBet);
   const totalPendingAmount = pendingBets.reduce(
@@ -55,15 +55,13 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
   if (balance < totalPendingAmount) {
     showNotification("Insufficient balance for all pending bets!", "error");
     updatedBets = updatedBets.map((bet) =>
-      bet.pendingBet
-        ? { ...bet, pendingBet: false }
-        : bet
+      bet.pendingBet ? { ...bet, pendingBet: false } : bet
     );
     setBets(updatedBets);
     return;
   }
 
-  const betPromises = pendingBets.map(async (bet, i) => {
+  pendingBets.forEach(async (bet) => {
     const index = updatedBets.findIndex((b) => b.id === bet.id);
     const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
 
@@ -75,6 +73,7 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
       gameId: gameId || 0,
     };
     setBalance((prev) => prev - betAmount);
+    setBets([...updatedBets]);
 
     try {
       if (authToken && walletType) {
@@ -103,11 +102,11 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
       console.error("StartGame Error:", err);
       updatedBets[index] = { ...bet, pendingBet: false };
     }
-  });
 
-  await Promise.all(betPromises);
-  setBets([...updatedBets]);
+    setBets([...updatedBets]);
+  });
 };
+
 
 
 
