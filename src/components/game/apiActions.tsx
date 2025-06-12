@@ -43,6 +43,7 @@ export const getGames = async (
 };
 
 
+
 export const crashedAPI = async (
   authToken: string,
   score?: number,

@@ -39,136 +39,130 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
     },
   ]);
   const [activeBetIndex, setActiveBetIndex] = useState<number>(0);
+  const betsRef = useRef<Bet[]>([]);
 
   useEffect(() => {
+    betsRef.current = bets;
+  }, [bets]);
+
+  useEffect(() => {
+    // lockbets phase
     if (prevGameState !== "lockbets" && gameState === "lockbets") {
-      // Process all pending bets when entering betting phase
+      const processBets = async () => {
+        let updatedBets = [...betsRef.current];
+        const pendingBets = updatedBets.filter((bet) => bet.pendingBet);
+        const totalPendingAmount = pendingBets.reduce(
+          (sum, bet) => sum + (typeof bet.amount === "number" ? bet.amount : 0),
+          0
+        );
 
-const processBets = async () => {
-  let updatedBets = [...bets];
-  const pendingBets = updatedBets.filter((bet) => bet.pendingBet);
-  const totalPendingAmount = pendingBets.reduce(
-    (sum, bet) => sum + (typeof bet.amount === "number" ? bet.amount : 0),
-    0
-  );
+        if (balance < totalPendingAmount) {
+          showNotification(
+            "Insufficient balance for all pending bets!",
+            "error"
+          );
+          updatedBets = updatedBets.map((bet) =>
+            bet.pendingBet ? { ...bet, pendingBet: false } : bet
+          );
+          setBets(updatedBets);
+          return;
+        }
 
-  if (balance < totalPendingAmount) {
-    showNotification("Insufficient balance for all pending bets!", "error");
-    updatedBets = updatedBets.map((bet) =>
-      bet.pendingBet ? { ...bet, pendingBet: false } : bet
-    );
-    setBets(updatedBets);
-    return;
-  }
+        pendingBets.forEach(async (bet) => {
+          const index = updatedBets.findIndex((b) => b.id === bet.id);
+          const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
 
-  pendingBets.forEach(async (bet) => {
-    const index = updatedBets.findIndex((b) => b.id === bet.id);
-    const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
+          updatedBets[index] = {
+            ...bet,
+            pendingBet: false,
+            hasPlacedBet: true,
+            gameId: gameId || 0,
+          };
+          setBalance((prev) => prev - betAmount);
+          setBets([...updatedBets]);
 
-    // Local deduction
-    updatedBets[index] = {
-      ...bet,
-      pendingBet: false,
-      hasPlacedBet: true,
-      gameId: gameId || 0,
-    };
-    setBalance((prev) => prev - betAmount);
-    setBets([...updatedBets]);
+          try {
+            if (authToken && walletType) {
+              const res = await startGame(betAmount, walletType, authToken);
+              const newBalance = res[walletType];
+              const newGameId = res.game_id;
 
-    try {
-      if (authToken && walletType) {
-        const res = await startGame(betAmount, walletType, authToken);
-        const newBalance = res[walletType];
-        const newGameId = res.game_id;
+              updatedBets[index] = {
+                ...bet,
+                pendingBet: false,
+                hasPlacedBet: true,
+                gameId: newGameId,
+              };
+              setBalance(newBalance);
+              setGameId(newGameId);
+            }
+          } catch (err) {
+            console.error("StartGame Error:", err);
+            updatedBets[index] = { ...bet, pendingBet: false };
+          }
 
-        updatedBets[index] = {
-          ...bet,
-          pendingBet: false,
-          hasPlacedBet: true,
-          gameId: newGameId,
-        };
-        setBalance(newBalance);
-        setGameId(newGameId);
-      } else {
-        console.warn("Placing bet locally (unauthenticated user)");
-        updatedBets[index] = {
-          ...bet,
-          pendingBet: false,
-          hasPlacedBet: true,
-          gameId: 0,
-        };
-      }
-    } catch (err) {
-      console.error("StartGame Error:", err);
-      updatedBets[index] = { ...bet, pendingBet: false };
-    }
-
-    setBets([...updatedBets]);
-  });
-};
-
-
-
+          setBets([...updatedBets]);
+        });
+      };
 
       processBets();
     }
 
-    // The rest of your transitions
+    // driving -> crashed
     if (prevGameState === "driving" && gameState === "crashed") {
-      // showNotification("Game crashed!", "error");
-
-      if (authToken) {
-        crashedAPI(authToken, multiplier, null)
-          .then((response) => {
-            // setBalance(response.balance);
-          })
-          .catch((error) => {
-            console.error("Crash API failed", error);
-            console.error("multiplier", multiplier);
-            console.error("token", authToken);
-          });
-      }
-
-      const updatedBets = bets.map((bet) => {
-        if (bet.hasPlacedBet && bet.isAutoBetEnabled) {
-          // showNotification("Auto bet queued for next round", "info");
-          return {
-            ...bet,
-            hasPlacedBet: false,
-            pendingBet: true,
-            gameId: 0, // Reset gameId to 0 for next round
-          };
-        }
+      const updatedBets = betsRef.current.map((bet) => {
         if (bet.hasPlacedBet) {
+          if (authToken) {
+            crashedAPI(authToken, multiplier, null).catch((error) => {
+              console.error("Crash API failed", error);
+            });
+          }
+
           return {
             ...bet,
             hasPlacedBet: false,
-            gameId: 0, // Reset gameId to 0 for next round
+            pendingBet: bet.isAutoBetEnabled,
+            gameId: 0,
           };
         }
         return bet;
       });
+
       setBets(updatedBets);
     }
 
-    if (prevGameState !== "betting" && gameState === "betting") {
-      // showNotification("New betting round started", "info");
-    }
+    // crash outside driving
+    if (gameState === "crashed") {
+      const updatedBets = betsRef.current.map((bet) => {
+        if (bet.hasPlacedBet) {
+          if (authToken) {
+            crashedAPI(authToken, multiplier, null).catch((error) => {
+              console.error("Crash API failed", error);
+            });
+          }
 
-    if (prevGameState !== "driving" && gameState === "driving") {
-      // showNotification("Game started!", "info");
+          return {
+            ...bet,
+            hasPlacedBet: false,
+            gameId: 0,
+          };
+        }
+        return bet;
+      });
+
+      setBets(updatedBets);
     }
 
     setPrevGameState(gameState);
   }, [
     gameState,
-    bets,
     setBalance,
     balance,
     gameId,
     setGameId,
     authToken,
     walletType,
+    multiplier,
   ]);
 
   useEffect(() => {
@@ -210,14 +204,17 @@ const processBets = async () => {
             `🎯 Attempting auto cashout for bet ${index} with gameId ${bet.gameId}`
           );
 
-            showNotification(
-                `Auto cashed out at ${multiplier.toFixed(
-                  2
-                )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
-                "success"
-              );
-              // setBalance((prev) => prev + cashOutAmount,  'with_balance');
-                  setBalance((prev) => prev + cashOutAmount, walletType === 'commissions' ? 'commissions' : 'with_balance');
+          showNotification(
+            `Auto cashed out at ${multiplier.toFixed(
+              2
+            )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
+            "success"
+          );
+          // setBalance((prev) => prev + cashOutAmount,  'with_balance');
+          setBalance(
+            (prev) => prev + cashOutAmount,
+            walletType === "commissions" ? "commissions" : "with_balance"
+          );
 
           try {
             if (authToken) {
@@ -242,7 +239,10 @@ const processBets = async () => {
                 "info"
               );
             }
-            setBalance((prev) => prev + cashOutAmount, walletType === 'commissions' ? 'commissions' : 'with_balance');
+            setBalance(
+              (prev) => prev + cashOutAmount,
+              walletType === "commissions" ? "commissions" : "with_balance"
+            );
 
             updatedBets[index] = {
               ...bet,
@@ -413,7 +413,9 @@ const processBets = async () => {
                                focus:ring-purple-500 focus:border-transparent appearance-none 
                                cursor-pointer pr-10 transition-all duration-200"
                     >
-                      <option value="" disabled>-- Select Wallet --</option>
+                      <option value="" disabled>
+                        -- Select Wallet --
+                      </option>
                       <option value="balance">Deposit Wallet</option>
                       <option value="bonus">Bonus Wallet</option>
                       <option value="with_balance">Withdrawable Wallet</option>

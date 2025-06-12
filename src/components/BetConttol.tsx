@@ -154,65 +154,56 @@ const BetControl: React.FC<BetControlProps> = ({
     }
   };
 
-  const placeBet = async (): Promise<void> => {
-    const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
+const placeBet = (): void => {
+  const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
 
-    if (betAmount <= 0) {
-      // showNotification("Invalid bet amount.", "error");
-      return;
-    }
+  if (betAmount <= 0) return;
 
-    // Can place immediately if in betting phase and has enough balance
-    if (gameState === "lockbets" && balance >= betAmount) {
-      if (!walletType) {
-        // showNotification("Wallet type is not selected.", "error");
-        return;
-      }
+  if (gameState === "lockbets" && balance >= betAmount) {
+    if (!walletType) return;
 
-      onUpdate({
-        ...bet,
-        hasPlacedBet: true,
-        pendingBet: false,
-      });
-      setBalance((prev) => prev - betAmount);
+    // Immediately update UI
+    onUpdate({
+      ...bet,
+      hasPlacedBet: true,
+      pendingBet: false,
+    });
+    setBalance((prev) => prev - betAmount);
 
-      try {
-        const res = await startGame(betAmount, walletType, authToken ?? "");
+    // Fire async call without await
+    startGame(betAmount, walletType, authToken ?? "")
+      .then((res) => {
         const newBalance = res[walletType];
         const newGameId = res.game_id;
 
         setBalance(newBalance);
-
         onUpdate({
           ...bet,
           hasPlacedBet: true,
           pendingBet: false,
           gameId: newGameId,
         });
-
-        // showNotification("Bet placed successfully!", "success");
-      } catch (error) {
+      })
+      .catch((error) => {
         console.error("Failed to place bet:", error);
-        // showNotification("Failed to place bet. Please try again.", "error");
         onUpdate({
           ...bet,
           pendingBet: false,
           hasPlacedBet: true,
-          gameId: 0, // or null, since there's no server gameId
+          gameId: 0,
         });
-      }
+      });
 
-      return;
-    }
+    return;
+  }
 
-    // Otherwise, mark bet as pending for next round
-    onUpdate({
-      ...bet,
-      pendingBet: true,
-    });
+  // Queue bet for next round
+  onUpdate({
+    ...bet,
+    pendingBet: true,
+  });
+};
 
-    // showNotification("Bet queued for next round!", "info");
-  };
 
   // Updated cancelBet to turn off AutoBet as well
   const cancelBet = (): void => {
@@ -289,12 +280,12 @@ const BetControl: React.FC<BetControlProps> = ({
         pendingBet: bet.isAutoBetEnabled,
       });
 
-      showNotification(
-        `Auto cashout (unauthenticated) at ${multiplier.toFixed(
-          2
-        )}x! Simulated win of ${cashOutAmount.toFixed(2)} XAF`,
-        "success"
-      );
+      // showNotification(
+      //   `Auto cashout (unauthenticated) at ${multiplier.toFixed(
+      //     2
+      //   )}x! Simulated win of ${cashOutAmount.toFixed(2)} XAF`,
+      //   "success"
+      // );
       setBalance((prev) => prev + cashOutAmount);
       // if (bet.isAutoBetEnabled) {
       //   showNotification("Next bet queued automatically", "info");
