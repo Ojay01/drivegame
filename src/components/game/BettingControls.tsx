@@ -68,24 +68,24 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
           return;
         }
 
-        pendingBets.forEach(async (bet) => {
-          const index = updatedBets.findIndex((b) => b.id === bet.id);
-          const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
+        // Pre-deduct the balance
+        setBalance((prev) => prev - totalPendingAmount);
 
-          updatedBets[index] = {
-            ...bet,
-            pendingBet: false,
-            hasPlacedBet: true,
-            gameId: gameId || 0,
-          };
-          setBalance((prev) => prev - betAmount);
-          setBets([...updatedBets]);
+        pendingBets.map((bet) => {
+          (async () => {
+            const index = updatedBets.findIndex((b) => b.id === bet.id);
+            const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
 
-          try {
-            if (authToken && walletType) {
-              const res = await startGame(betAmount, walletType, authToken);
-              const newBalance = res[walletType];
-              const newGameId = res.game_id;
+            let newGameId = gameId || 0;
+
+            try {
+              if (authToken && walletType) {
+                const res = await startGame(betAmount, walletType, authToken);
+                newGameId = res.game_id;
+                const newBalance = res[walletType];
+                setBalance(newBalance);
+                setGameId(newGameId);
+              }
 
               updatedBets[index] = {
                 ...bet,
@@ -93,16 +93,17 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
                 hasPlacedBet: true,
                 gameId: newGameId,
               };
-              setBalance(newBalance);
-              setGameId(newGameId);
+            } catch (err) {
+              console.error("StartGame Error:", err);
+              updatedBets[index] = { ...bet, pendingBet: false };
             }
-          } catch (err) {
-            console.error("StartGame Error:", err);
-            updatedBets[index] = { ...bet, pendingBet: false };
-          }
 
-          setBets([...updatedBets]);
+            // Reflect each update immediately
+            setBets([...updatedBets]);
+          })();
         });
+
+        setBets([...updatedBets]);
       };
 
       processBets();
@@ -144,6 +145,7 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
           return {
             ...bet,
             hasPlacedBet: false,
+            pendingBet: bet.isAutoBetEnabled,
             gameId: 0,
           };
         }
