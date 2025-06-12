@@ -142,7 +142,7 @@ function startGameCycle(io, history) {
               winnings: 0
             });
 
-            if (history.length > 25) history.pop();
+            if (history.length > 50) history.pop();
             io.emit('history', { type: 'history', items: history });
 
             setTimeout(runGameCycle, 1500);
