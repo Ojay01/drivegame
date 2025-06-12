@@ -43,82 +43,73 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
   useEffect(() => {
     if (prevGameState !== "lockbets" && gameState === "lockbets") {
       // Process all pending bets when entering betting phase
-      const processBets = async () => {
-        // Create a copy of bets to update
-        let updatedBets = [...bets];
 
-        // Process each bet sequentially to ensure proper game IDs
-        for (let i = 0; i < updatedBets.length; i++) {
-          const bet = updatedBets[i];
+ const processBets = async () => {
+  let updatedBets = [...bets];
+  const pendingBets = updatedBets.filter((bet) => bet.pendingBet);
+  const totalPendingAmount = pendingBets.reduce(
+    (sum, bet) => sum + (typeof bet.amount === "number" ? bet.amount : 0),
+    0
+  );
 
-          if (bet.pendingBet) {
-            const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
+  if (balance < totalPendingAmount) {
+    showNotification("Insufficient balance for all pending bets!", "error");
+    updatedBets = updatedBets.map((bet) =>
+      bet.pendingBet
+        ? { ...bet, pendingBet: false }
+        : bet
+    );
+    setBets(updatedBets);
+    return;
+  }
 
-            if (balance >= betAmount) {
-              // Deduct balance locally
-              updatedBets[i] = {
+  const betPromises = pendingBets.map(async (bet, i) => {
+    const index = updatedBets.findIndex((b) => b.id === bet.id);
+    const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
+
+    // Local deduction
+    updatedBets[index] = {
+      ...bet,
+      pendingBet: false,
+      hasPlacedBet: true,
+      gameId: gameId || 0,
+    };
+    setBalance((prev) => prev - betAmount);
+
+    try {
+      if (authToken && walletType) {
+        const res = await startGame(betAmount, walletType, authToken);
+        const newBalance = res[walletType];
+        const newGameId = res.game_id;
+
+        updatedBets[index] = {
           ...bet,
           pendingBet: false,
           hasPlacedBet: true,
-          gameId: gameId || 0, // Use current gameId or fallback to 0
+          gameId: newGameId,
         };
-              setBalance((prev) => prev - betAmount);
+        setBalance(newBalance);
+        setGameId(newGameId);
+      } else {
+        console.warn("Placing bet locally (unauthenticated user)");
+        updatedBets[index] = {
+          ...bet,
+          pendingBet: false,
+          hasPlacedBet: true,
+          gameId: 0,
+        };
+      }
+    } catch (err) {
+      console.error("StartGame Error:", err);
+      updatedBets[index] = { ...bet, pendingBet: false };
+    }
+  });
 
-              // showNotification(
-              //   `Pending bet of ${betAmount.toFixed(2)} XAF placed`,
-              //   "success"
-              // );
+  await Promise.all(betPromises);
+  setBets([...updatedBets]);
+};
 
-              if (authToken && walletType) {
-                // ✅ Authenticated: Proceed with API
-                try {
-                  const res = await startGame(betAmount, walletType, authToken);
-                  const newBalance = res[walletType];
-                  setBalance(newBalance);
-                  const newGameId = res.game_id;
-                  setGameId(newGameId);
 
-                  updatedBets[i] = {
-                    ...bet,
-                    pendingBet: false,
-                    hasPlacedBet: true,
-                    gameId: newGameId,
-                  };
-                } catch (err) {
-                  // showNotification("Failed to start game", "error");
-                  console.error("StartGame Error:", err);
-
-                  updatedBets[i] = {
-                    ...bet,
-                    pendingBet: false,
-                  };
-                }
-              } else {
-                // 🚫 Not authenticated: just simulate local bet
-                updatedBets[i] = {
-                  ...bet,
-                  pendingBet: false,
-                  hasPlacedBet: true,
-                  gameId: 0, // or null, since there's no server gameId
-                };
-                console.warn("Placing bet locally (unauthenticated user)");
-              }
-            } else {
-              showNotification(
-                "Insufficient balance for pending bet!",
-                "error"
-              );
-              updatedBets[i] = {
-                ...bet,
-                pendingBet: false,
-              };
-            }
-          }
-        }
-
-        // Update all bets at once
-        setBets(updatedBets);
-      };
 
       processBets();
     }
