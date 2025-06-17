@@ -55,68 +55,95 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
 
   useEffect(() => {
     // lockbets phase
-    if (prevGameState !== "lockbets" && gameState === "lockbets") {
-      const processBets = async () => {
-        let updatedBets = [...betsRef.current];
-        const pendingBets = updatedBets.filter((bet) => bet.pendingBet);
-        const totalPendingAmount = pendingBets.reduce(
-          (sum, bet) => sum + (typeof bet.amount === "number" ? bet.amount : 0),
-          0
+   if (prevGameState !== "lockbets" && gameState === "lockbets") {
+    const processBets = async () => {
+      let updatedBets = [...betsRef.current];
+      const pendingBets = updatedBets.filter((bet) => bet.pendingBet);
+      const totalPendingAmount = pendingBets.reduce(
+        (sum, bet) => sum + (typeof bet.amount === "number" ? bet.amount : 0),
+        0
+      );
+
+      if (balance < totalPendingAmount) {
+        showNotification("Insufficient balance for all pending bets!", "error");
+        updatedBets = updatedBets.map((bet) =>
+          bet.pendingBet ? { ...bet, pendingBet: false } : bet
         );
+        setBets(updatedBets);
+        return;
+      }
 
-        if (balance < totalPendingAmount) {
-          showNotification(
-            "Insufficient balance for all pending bets!",
-            "error"
-          );
-          updatedBets = updatedBets.map((bet) =>
-            bet.pendingBet ? { ...bet, pendingBet: false } : bet
-          );
-          setBets(updatedBets);
-          return;
-        }
+      // Pre-deduct the balance
+      setBalance((prev) => prev - totalPendingAmount);
 
-        // Pre-deduct the balance
-        setBalance((prev) => prev - totalPendingAmount);
+      try {
+        // Process all bets in parallel
+        const betPromises = pendingBets.map(async (bet) => {
+          const index = updatedBets.findIndex((b) => b.id === bet.id);
+          const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
+          let newGameId = gameId || 0;
 
-        pendingBets.map((bet) => {
-          (async () => {
-            const index = updatedBets.findIndex((b) => b.id === bet.id);
-            const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
+          if (authToken && walletType) {
+            const res = await startGame(betAmount, walletType, authToken);
+            newGameId = res.game_id;
+            const newBalance = res[walletType];
+            return {
+              index,
+              bet,
+              newGameId,
+              newBalance,
+              success: true,
+            };
+          }
 
-            let newGameId = gameId || 0;
+          return {
+            index,
+            bet,
+            newGameId,
+            newBalance: balance,
+            success: true,
+          };
+        });
 
-            try {
-              if (authToken && walletType) {
-                const res = await startGame(betAmount, walletType, authToken);
-                newGameId = res.game_id;
-                const newBalance = res[walletType];
-                setBalance(newBalance);
-                setGameId(newGameId);
-              }
+        const results = await Promise.allSettled(betPromises);
 
+        // Process results
+        results.forEach((result, i) => {
+          const index = pendingBets[i].id;
+          if (result.status === "fulfilled") {
+            const { index, bet, newGameId, newBalance, success } = result.value;
+            if (success) {
               updatedBets[index] = {
                 ...bet,
                 pendingBet: false,
                 hasPlacedBet: true,
                 gameId: newGameId,
               };
-            } catch (err) {
-              console.error("StartGame Error:", err);
-              updatedBets[index] = { ...bet, pendingBet: false };
+              // Update balance only once per successful bet
+              setBalance(newBalance);
+              setGameId(newGameId);
             }
-
-            // Reflect each update immediately
-            setBets([...updatedBets]);
-          })();
+          } else {
+            console.error("StartGame Error:", result.reason);
+            updatedBets[index] = { ...pendingBets[i], pendingBet: false };
+          }
         });
 
-        setBets([...updatedBets]);
-      };
+        // Single state update
+        setBets(updatedBets);
+      } catch (err) {
+        console.error("Batch StartGame Error:", err);
+        // Rollback balance if all fail
+        setBalance((prev) => prev + totalPendingAmount);
+        updatedBets = updatedBets.map((bet) =>
+          bet.pendingBet ? { ...bet, pendingBet: false } : bet
+        );
+        setBets(updatedBets);
+      }
+    };
 
-      processBets();
-    }
-
+    processBets();
+  }
     // driving -> crashed
     if (prevGameState === "driving" && gameState === "crashed") {
       const updatedBets = betsRef.current.map((bet) => {
