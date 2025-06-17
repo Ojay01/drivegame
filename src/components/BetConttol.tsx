@@ -1,4 +1,5 @@
 import { Minus, Plus, X, ChevronDown, ChevronUp } from "lucide-react";
+import { useRef } from "react";
 
 import { BetControlProps, showNotification } from "@/lib/types/bet";
 import { cashoutAPI, startGame } from "./game/apiActions";
@@ -20,6 +21,8 @@ const BetControl: React.FC<BetControlProps> = ({
 }) => {
   const quickAmounts = [10.0, 20.0, 50.0, 100.0];
   
+  // Add the missing ref for cashout sound
+  const cashoutSoundRef = useRef<HTMLAudioElement>(null);
 
   // Determine if controls should be disabled
   const isControlsDisabled = bet.hasPlacedBet || bet.pendingBet;
@@ -105,12 +108,6 @@ const BetControl: React.FC<BetControlProps> = ({
       ...bet,
       isAutoCashOutEnabled: !bet.isAutoCashOutEnabled,
     });
-    // showNotification(
-    // bet.isAutoCashOutEnabled
-    //      "Auto Cash Out enabled"
-    //     : "Auto Cash Out disabled",
-    //   "info"
-    // );
   };
 
   // Updated toggleAutoBet to set bet as active or pending when turned on
@@ -132,7 +129,6 @@ const BetControl: React.FC<BetControlProps> = ({
           hasPlacedBet: true,
           pendingBet: false,
         });
-        // showNotification("Auto Bet enabled and bet placed!", "success");
       }
       // Otherwise set as pending for next round
       else {
@@ -142,7 +138,6 @@ const BetControl: React.FC<BetControlProps> = ({
           pendingBet: true,
           hasPlacedBet: false,
         });
-        // showNotification("Auto Bet enabled and queued for next round!", "info");
       }
     } else {
       // Just turn off AutoBet
@@ -150,7 +145,6 @@ const BetControl: React.FC<BetControlProps> = ({
         ...bet,
         isAutoBetEnabled: false,
       });
-      // showNotification("Auto Bet disabled", "info");
     }
   };
 
@@ -204,6 +198,13 @@ const placeBet = (): void => {
   });
 };
 
+  const playCashoutSound = () => {
+    if (cashoutSoundRef.current) {
+      cashoutSoundRef.current
+        .play()
+        .catch((e) => console.log("Sound play error:", e));
+    }
+  };
 
   // Updated cancelBet to turn off AutoBet as well
   const cancelBet = (): void => {
@@ -220,8 +221,6 @@ const placeBet = (): void => {
       pendingBet: false,
       hasPlacedBet: bet.hasPlacedBet && gameState !== "betting" ? true : false,
     });
-
-    // showNotification("Bet cancelled and Auto Bet disabled!", "info");
   };
 
   const cashOut = (): void => {
@@ -232,6 +231,9 @@ const placeBet = (): void => {
       showNotification("Invalid bet amount for cashout", "error");
       return;
     }
+
+    // Play cashout sound
+    playCashoutSound();
 
     onUpdate({
       ...bet,
@@ -249,29 +251,6 @@ const placeBet = (): void => {
     if (authToken) {
       // Real cashout for authenticated users
       cashoutAPI(cashOutAmount, authToken, multiplier, bet.gameId);
-      // .then((response) => {
-      //   // onUpdate({
-      //   //   ...bet,
-      //   //   hasPlacedBet: false,
-      //   //   pendingBet: bet.isAutoBetEnabled,
-      //   // });
-
-      //   showNotification(
-      //     `Cashed out at ${multiplier.toFixed(
-      //       2
-      //     )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
-      //     "success"
-      //   );
-
-      //   if (bet.isAutoBetEnabled) {
-      //     // showNotification("Next bet queued automatically", "info");
-      //   }
-      //   setBalance((prev) => prev + cashOutAmount, "with_balance");
-      // })
-      // .catch((error) => {
-      //   console.error("❌ Cashout failed", error);
-      //   showNotification("Cashout failed. Please try again.", "error");
-      // });
     } else {
       // Simulated cashout for unauthenticated users
       onUpdate({
@@ -280,16 +259,7 @@ const placeBet = (): void => {
         pendingBet: bet.isAutoBetEnabled,
       });
 
-      // showNotification(
-      //   `Auto cashout (unauthenticated) at ${multiplier.toFixed(
-      //     2
-      //   )}x! Simulated win of ${cashOutAmount.toFixed(2)} XAF`,
-      //   "success"
-      // );
       setBalance((prev) => prev + cashOutAmount);
-      // if (bet.isAutoBetEnabled) {
-      //   showNotification("Next bet queued automatically", "info");
-      // }
     }
   };
 
@@ -352,6 +322,11 @@ const placeBet = (): void => {
         isActive ? "border border-gray-600" : ""
       }`}
     >
+      {/* Hidden audio element for cashout sound */}
+      <audio ref={cashoutSoundRef} preload="auto">
+        <source src="/sounds/cashout.wav" type="audio/wav" />
+      </audio>
+
       <div className="flex items-center justify-between p-2">
         <div className="flex items-center">
           <span className="text-sm mr-2">Bet {index + 1}</span>
@@ -371,7 +346,6 @@ const placeBet = (): void => {
               onClick={() => {
                 if (!isControlsDisabled) {
                   onRemove();
-                  // showNotification("Bet removed", "info");
                 }
               }}
               className={`text-gray-400 hover:text-red-500 ${
@@ -442,10 +416,6 @@ const placeBet = (): void => {
               onClick={() => {
                 if (!isControlsDisabled) {
                   setBetAmount(amount);
-                  // showNotification(
-                  //   `Bet amount set to ${amount.toFixed(2)} XAF`,
-                  //   "info"
-                  // );
                 }
               }}
               disabled={isControlsDisabled}

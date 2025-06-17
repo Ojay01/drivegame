@@ -8,9 +8,9 @@ import CrashedCarSVG from "../crashed-car";
 // Sound URLs - replace these with your actual sound URLs
 const SOUND_URLS = {
   betting: "https://cdn.freesound.org/previews/555/555389_5674468-lq.mp3", // UI ready sound
-  driving: "/sounds/driving.mp3", // Engine revving sound
+  driving: "/sounds/driving.wav", // Engine revving sound
   crashed: "/sounds/crash.wav", // Crash sound
-  cashout: "https://cdn.freesound.org/previews/511/511484_4931062-lq.mp3", // Cash register sound
+  cashout: "/sounds/cashout.wav", // Cash register sound
   countdown: "https://cdn.freesound.org/previews/316/316847_5123451-lq.mp3", // Countdown beep sound
 };
 
@@ -292,17 +292,7 @@ const GameArea: React.FC = () => {
       )}
 
       {/* Cash Out Button */}
-      {gameState === "driving" && hasPlacedBet && (
-        <button
-          className="absolute bottom-4 right-4 z-20 px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg shadow-lg"
-          onClick={() => {
-            playCashoutSound();
-            // Add your actual cash out logic here
-          }}
-        >
-          CASH OUT
-        </button>
-      )}
+    
 
       {/* Countdown Display - Made smaller and more compact */}
       {showCountdown && countdown !== null && (

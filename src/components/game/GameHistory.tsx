@@ -22,6 +22,7 @@ const GameHistory: React.FC<GameHistoryProps> = ({
   const [lastClearSession, setLastClearSession] = useState<boolean>(false);
   const [liveGames, setLiveGames] = useState<Game[]>([]);
   const [showPersonalTopBets, setShowPersonalTopBets] = useState<boolean>(false);
+  
 
 useEffect(() => {
   if (clearSession && !lastClearSession) {

@@ -24,6 +24,14 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
     multiplier,
   } = useGameContext();
   const cashedOutRef = useRef<Set<string>>(new Set()); // Using string for composite IDs
+    const cashoutSoundRef = useRef<HTMLAudioElement>(null);
+  const playCashoutSound = () => {
+    if (cashoutSoundRef.current) {
+      cashoutSoundRef.current
+        .play()
+        .catch((e) => console.log("Sound play error:", e));
+    }
+  };
   const [prevGameState, setPrevGameState] = useState(gameState);
   const [selectedTab, setSelectedTab] = useState<"Bet" | "Wallet">("Bet");
   const [bets, setBets] = useState<Bet[]>([
@@ -206,12 +214,7 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
             `🎯 Attempting auto cashout for bet ${index} with gameId ${bet.gameId}`
           );
 
-          showNotification(
-            `Auto cashed out at ${multiplier.toFixed(
-              2
-            )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
-            "success"
-          );
+    
           // setBalance((prev) => prev + cashOutAmount,  'with_balance');
           setBalance(
             (prev) => prev + cashOutAmount,
@@ -226,13 +229,13 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
                 multiplier,
                 bet.gameId
               );
-              // showNotification(
-              //   `Auto cashed out at ${multiplier.toFixed(
-              //     2
-              //   )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
-              //   "success"
-              // );
-              // setBalance((prev) => prev + cashOutAmount,  'with_balance');
+              
+                    showNotification(
+            `Auto cashed out at ${multiplier.toFixed(
+              2
+            )}x! Won ${cashOutAmount.toFixed(2)} XAF`,
+            "success"
+          );
             } else {
               showNotification(
                 `Auto cashout (unauthenticated) at ${multiplier.toFixed(
@@ -241,6 +244,7 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
                 "info"
               );
             }
+               playCashoutSound();
             setBalance(
               (prev) => prev + cashOutAmount,
               walletType === "commissions" ? "commissions" : "with_balance"
@@ -318,6 +322,9 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
   return (
     <div className="bg-black bg-opacity-90 text-white rounded-lg border border-gray-800 shadow-lg overflow-hidden">
       {/* Tab Selection - Enhanced with gradient and better styling */}
+          <audio ref={cashoutSoundRef} preload="auto">
+        <source src="/sounds/cashout.wav" type="audio/wav" />
+      </audio>
       <div className="flex border-b border-gray-800">
         <button
           className={`flex-1 py-3 font-medium text-sm transition-all duration-200 ${
