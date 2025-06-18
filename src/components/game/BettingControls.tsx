@@ -239,10 +239,10 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
                 console.error(`❌ Cashout failed for bet ${index}`, error);
                 cashedOutRef.current.delete(cashoutKey);
                 // Optionally revert balance or show error
-                showNotification(
-                  `Cashout failed for bet ${index + 1}. Please try manual cashout.`,
-                  "error"
-                );
+                // showNotification(
+                //   `Cashout failed for bet ${index + 1}. Please try manual cashout.`,
+                //   "error"
+                // );
               });
           }
         });
