@@ -2,7 +2,7 @@ import { Minus, Plus, X, ChevronDown, ChevronUp } from "lucide-react";
 import { useRef } from "react";
 
 import { BetControlProps, showNotification } from "@/lib/types/bet";
-import { cashoutAPI, startGame } from "./game/apiActions";
+import { cashoutAPI, startGameSingle } from "./game/apiActions";
 
 const BetControl: React.FC<BetControlProps> = ({
   bet,
@@ -165,7 +165,7 @@ const placeBet = (): void => {
     setBalance((prev) => prev - betAmount);
 
     // Fire async call without await
-    startGame(betAmount, walletType, authToken ?? "")
+    startGameSingle(betAmount, walletType, authToken ?? "")
       .then((res) => {
         const newBalance = res[walletType];
         const newGameId = res.game_id;

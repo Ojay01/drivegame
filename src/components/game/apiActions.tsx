@@ -2,28 +2,57 @@ import { createApiClient } from "@/lib/api";
 import { BalanceResponse, GetGamesResponse } from "@/lib/types/apitypes";
 import { WalletType } from "@/lib/types/bet";
 
+// export const startGame = async (
+//   stake: number,
+//   walletType: WalletType,
+//   authToken: string
+// ) => {
+//   const api = createApiClient(authToken);
+
+//   try {
+//     const response = await api.post("/start-game", {
+//       stake,
+//       walletType,
+//     });
+
+//     return response.data;
+//   } catch (error: any) {
+//     if (error.response && error.response.data) {
+//       throw new Error(error.response.data.message || "Something went wrong");
+//     } else {
+//       throw new Error("Network or server error");
+//     }
+//   }
+// };
+
+export const startGameSingle = async (stake: number, walletType: WalletType, authToken: string) => {
+  // Convert single bet to batch format
+  const betsData = [{ bet_id: Date.now().toString(), stake }]
+  return startGame(betsData, walletType, authToken)
+}
+
 export const startGame = async (
-  stake: number,
+  betsData: Array<{ bet_id: string; stake: number }>,
   walletType: WalletType,
-  authToken: string
+  authToken: string,
 ) => {
-  const api = createApiClient(authToken);
+  const api = createApiClient(authToken)
 
   try {
     const response = await api.post("/start-game", {
-      stake,
+      bets: betsData, // Always send as batch
       walletType,
-    });
+    })
 
-    return response.data;
+    return response.data
   } catch (error: any) {
     if (error.response && error.response.data) {
-      throw new Error(error.response.data.message || "Something went wrong");
+      throw new Error(error.response.data.message || "Something went wrong")
     } else {
-      throw new Error("Network or server error");
+      throw new Error("Network or server error")
     }
   }
-};
+}
 
 export const getBalance = async (
   authToken: string

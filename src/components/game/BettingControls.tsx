@@ -1,40 +1,30 @@
+import type React from "react"
 // "use client";
-import { useEffect, useRef, useState } from "react";
-import { useGameContext } from "./GameContext";
-import { Bet, showNotification } from "@/lib/types/bet";
-import { cashoutAPI, crashedAPI, startGame } from "./apiActions";
-import BetControl from "../BetConttol";
+import { useEffect, useRef, useState } from "react"
+import { useGameContext } from "./GameContext"
+import { type Bet, showNotification } from "@/lib/types/bet"
+import { cashoutAPI, crashedAPI, startGame } from "./apiActions" // Import the updated function
+import BetControl from "../BetConttol"
 
 // Main Container Component
 
 interface GameControlsProps {
-  authToken: string | null;
+  authToken: string | null
 }
 
 const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
-  const {
-    gameState,
-    balance,
-    gameId,
-    setGameId,
-    setBalance,
-    walletType,
-    setWalletType,
-    multiplier,
-  } = useGameContext();
-  const cashedOutRef = useRef<Set<string>>(new Set());
-  const cashoutSoundRef = useRef<HTMLAudioElement>(null);
-  
+  const { gameState, balance, gameId, setGameId, setBalance, walletType, setWalletType, multiplier } = useGameContext()
+  const cashedOutRef = useRef<Set<string>>(new Set())
+  const cashoutSoundRef = useRef<HTMLAudioElement>(null)
+
   const playCashoutSound = () => {
     if (cashoutSoundRef.current) {
-      cashoutSoundRef.current
-        .play()
-        .catch((e) => console.log("Sound play error:", e));
+      cashoutSoundRef.current.play().catch((e) => console.log("Sound play error:", e))
     }
-  };
+  }
 
-  const [prevGameState, setPrevGameState] = useState(gameState);
-  const [selectedTab, setSelectedTab] = useState<"Bet" | "Wallet">("Bet");
+  const [prevGameState, setPrevGameState] = useState(gameState)
+  const [selectedTab, setSelectedTab] = useState<"Bet" | "Wallet">("Bet")
   const [bets, setBets] = useState<Bet[]>([
     {
       id: 1,
@@ -46,99 +36,118 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
       isAutoBetEnabled: false,
       gameId: 0,
     },
-  ]);
-  const [activeBetIndex, setActiveBetIndex] = useState<number>(0);
-  const betsRef = useRef<Bet[]>([]);
+  ])
+  const [activeBetIndex, setActiveBetIndex] = useState<number>(0)
+  const betsRef = useRef<Bet[]>([])
 
   useEffect(() => {
-    betsRef.current = bets;
-  }, [bets]);
-
-  // Helper function to handle API calls without blocking UI
-  const handleAPICall = (apiFunction: () => Promise<any>, fallbackAction: () => void) => {
-    // Execute fallback immediately for instant UI response
-    fallbackAction();
-    
-    // Then handle API call in background
-    if (authToken) {
-      apiFunction().catch((error) => {
-        console.error("API call failed:", error);
-        // Optionally revert changes or show error notification
-      });
-    }
-  };
+    betsRef.current = bets
+  }, [bets])
 
   useEffect(() => {
-    // lockbets phase
+    // lockbets phase - IMMEDIATELY lock all pending bets
     if (prevGameState !== "lockbets" && gameState === "lockbets") {
-      let updatedBets = [...betsRef.current];
-      const pendingBets = updatedBets.filter((bet) => bet.pendingBet);
-      const totalPendingAmount = pendingBets.reduce(
-        (sum, bet) => sum + (typeof bet.amount === "number" ? bet.amount : 0),
-        0
-      );
+      let updatedBets = [...betsRef.current]
+      const pendingBets = updatedBets.filter((bet) => bet.pendingBet)
 
-      if (balance < totalPendingAmount) {
-        showNotification(
-          "Insufficient balance for all pending bets!",
-          "error"
-        );
-        updatedBets = updatedBets.map((bet) =>
-          bet.pendingBet ? { ...bet, pendingBet: false } : bet
-        );
-        setBets(updatedBets);
-        return;
+      if (pendingBets.length === 0) {
+        return // No pending bets to process
       }
 
-      // Immediately update UI state
-      setBalance((prev) => prev - totalPendingAmount);
+      const totalPendingAmount = pendingBets.reduce(
+        (sum, bet) => sum + (typeof bet.amount === "number" ? bet.amount : 0),
+        0,
+      )
 
-      pendingBets.forEach((bet) => {
-        const index = updatedBets.findIndex((b) => b.id === bet.id);
-        const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
-        let newGameId = gameId || Date.now(); // Use timestamp as fallback ID
+      // Check balance first
+      if (balance < totalPendingAmount) {
+        showNotification("Insufficient balance for all pending bets!", "error")
+        updatedBets = updatedBets.map((bet) => (bet.pendingBet ? { ...bet, pendingBet: false } : bet))
+        setBets(updatedBets)
+        return
+      }
 
-        // Immediately update bet state for instant UI feedback
-        updatedBets[index] = {
-          ...bet,
-          pendingBet: false,
-          hasPlacedBet: true,
-          gameId: newGameId,
-        };
+      // IMMEDIATELY lock all pending bets and update UI - no delays!
+      console.log(`🔒 Locking ${pendingBets.length} pending bets immediately`)
 
-        // Handle API call in background
-        if (authToken && walletType) {
-          startGame(betAmount, walletType, authToken)
-            .then((res) => {
-              const actualGameId = res.game_id;
-              const newBalance = res[walletType];
-              
-              // Update with real values from API
-              setBalance(newBalance);
-              setGameId(actualGameId);
-              
-              // Update bet with actual game ID
-              setBets(currentBets => 
-                currentBets.map(b => 
-                  b.id === bet.id ? { ...b, gameId: actualGameId } : b
-                )
-              );
-            })
-            .catch((err) => {
-              console.error("StartGame Error:", err);
-              // Revert bet state on error
-              setBets(currentBets => 
-                currentBets.map(b => 
-                  b.id === bet.id ? { ...b, pendingBet: false, hasPlacedBet: false } : b
-                )
-              );
-              // Restore balance
-              setBalance(prev => prev + betAmount);
-            });
+      // 1. Immediately deduct balance
+      setBalance((prev) => prev - totalPendingAmount)
+
+      // 2. Immediately lock all pending bets
+      updatedBets = updatedBets.map((bet) => {
+        if (bet.pendingBet) {
+          return {
+            ...bet,
+            pendingBet: false,
+            hasPlacedBet: true,
+            gameId: gameId || Date.now(), // Use current gameId or timestamp as fallback
+          }
         }
-      });
+        return bet
+      })
 
-      setBets([...updatedBets]);
+      // 3. Update UI state immediately
+      setBets([...updatedBets])
+
+      // 4. Handle API calls in background using the imported function
+      if (authToken && walletType && pendingBets.length > 0) {
+        // Prepare batch data for the API function
+        const betsPayload = pendingBets.map((bet) => ({
+          bet_id: bet.id.toString(),
+          stake: typeof bet.amount === "number" ? bet.amount : 0,
+        }))
+
+        const fetchStartGame = async () => {
+          try {
+            // Use the imported startGame function
+            const res = await startGame(betsPayload, walletType, authToken)
+
+            if (res.success && res.games) {
+              // All bets successful - update with real data
+              setBalance(res[walletType])
+
+              // Update all bets with their respective game IDs
+              setBets((currentBets) =>
+                currentBets.map((bet) => {
+                  const gameData = res.games.find((g: any) => g.bet_id === bet.id.toString())
+                  return gameData ? { ...bet, gameId: gameData.game_id } : bet
+                }),
+              )
+
+              console.log(`✅ ${res.total_bets} bet(s) confirmed successfully`)
+              // showNotification(
+              //   res.total_bets === 1 ? `Bet placed successfully!` : `${res.total_bets} bets placed successfully!`,
+              //   "success",
+              // )
+            } else {
+              throw new Error(res.message || "Bet placement failed")
+            }
+          } catch (err: any) {
+            console.error("❌ StartGame failed:", err)
+
+            // Revert ALL bets on failure
+            setBets((currentBets) =>
+              currentBets.map((bet) =>
+                pendingBets.find((pb) => pb.id === bet.id)
+                  ? { ...bet, pendingBet: false, hasPlacedBet: false, gameId: 0 }
+                  : bet,
+              ),
+            )
+
+            // Restore full balance
+            setBalance((prev) => prev + totalPendingAmount)
+
+            showNotification(
+              `${pendingBets.length === 1 ? "Bet" : "All bets"} failed: ${err.message}. ${totalPendingAmount} XAF refunded.`,
+              "error",
+            )
+          }
+        }
+
+        fetchStartGame()
+      } else {
+        console.log("🔒 Bets locked locally (no auth token or wallet type)")
+      }
     }
 
     // driving -> crashed or crashed states
@@ -148,8 +157,8 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
           // Handle crash API in background
           if (authToken) {
             crashedAPI(authToken, multiplier, null).catch((error) => {
-              console.error("Crash API failed", error);
-            });
+              console.error("Crash API failed", error)
+            })
           }
 
           return {
@@ -157,37 +166,28 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
             hasPlacedBet: false,
             pendingBet: bet.isAutoBetEnabled,
             gameId: 0,
-          };
+          }
         }
-        return bet;
-      });
+        return bet
+      })
 
-      setBets(updatedBets);
+      setBets(updatedBets)
     }
 
-    setPrevGameState(gameState);
-  }, [
-    gameState,
-    setBalance,
-    balance,
-    gameId,
-    setGameId,
-    authToken,
-    walletType,
-    multiplier,
-  ]);
+    setPrevGameState(gameState)
+  }, [gameState, setBalance, balance, gameId, setGameId, authToken, walletType, multiplier])
 
   useEffect(() => {
     if (gameState === "driving") {
       const betsToProcess: Array<{
-        bet: Bet;
-        index: number;
-        cashoutKey: string;
-      }> = [];
+        bet: Bet
+        index: number
+        cashoutKey: string
+      }> = []
 
       bets.forEach((bet, index) => {
-        const cashoutKey = `${bet.id}-${bet.gameId}`;
-        const alreadyCashedOut = cashedOutRef.current.has(cashoutKey);
+        const cashoutKey = `${bet.id}-${bet.gameId}`
+        const alreadyCashedOut = cashedOutRef.current.has(cashoutKey)
 
         const isValidAutoCashOut =
           bet.hasPlacedBet &&
@@ -195,66 +195,55 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
           typeof bet.autoCashOut === "number" &&
           multiplier >= bet.autoCashOut &&
           typeof bet.gameId === "number" &&
-          (authToken ? bet.gameId > 0 : bet.gameId === 0);
+          (authToken ? bet.gameId > 0 : bet.gameId === 0)
 
         if (isValidAutoCashOut && !alreadyCashedOut) {
-          cashedOutRef.current.add(cashoutKey);
-          betsToProcess.push({ bet, index, cashoutKey });
+          cashedOutRef.current.add(cashoutKey)
+          betsToProcess.push({ bet, index, cashoutKey })
         }
-      });
+      })
 
       if (betsToProcess.length > 0) {
-        let updatedBets = [...bets];
+        const updatedBets = [...bets]
 
         betsToProcess.forEach(({ bet, index, cashoutKey }) => {
-          const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
-          const cashOutAmount = betAmount * multiplier;
+          const betAmount = typeof bet.amount === "number" ? bet.amount : 0
+          const cashOutAmount = betAmount * multiplier
 
-          console.log(
-            `🎯 Auto cashout for bet ${index} with gameId ${bet.gameId}`
-          );
+          console.log(`🎯 Auto cashout for bet ${index} with gameId ${bet.gameId}`)
 
           // Immediately update UI state
-          setBalance(
-            (prev) => prev + cashOutAmount,
-            walletType === "commissions" ? "commissions" : "with_balance"
-          );
+          setBalance((prev) => prev + cashOutAmount, walletType === "commissions" ? "commissions" : "with_balance")
 
           updatedBets[index] = {
             ...bet,
             hasPlacedBet: false,
             pendingBet: bet.isAutoBetEnabled,
-          };
+          }
 
-          playCashoutSound();
+          playCashoutSound()
           showNotification(
             `Auto cashed out at ${multiplier.toFixed(2)}x! Won ${cashOutAmount.toFixed(2)} XAF`,
-            "success"
-          );
+            "success",
+          )
 
           // Handle API call in background
           if (authToken) {
-            cashoutAPI(cashOutAmount, authToken, multiplier, bet.gameId)
-              .catch((error) => {
-                console.error(`❌ Cashout failed for bet ${index}`, error);
-                cashedOutRef.current.delete(cashoutKey);
-                // Optionally revert balance or show error
-                // showNotification(
-                //   `Cashout failed for bet ${index + 1}. Please try manual cashout.`,
-                //   "error"
-                // );
-              });
+            cashoutAPI(cashOutAmount, authToken, multiplier, bet.gameId).catch((error) => {
+              console.error(`❌ Cashout failed for bet ${index}`, error)
+              cashedOutRef.current.delete(cashoutKey)
+            })
           }
-        });
+        })
 
-        setBets([...updatedBets]);
+        setBets([...updatedBets])
       }
     }
 
     if (gameState === "betting") {
-      cashedOutRef.current.clear();
+      cashedOutRef.current.clear()
     }
-  }, [gameState, multiplier, bets, authToken, walletType]);
+  }, [gameState, multiplier, bets, authToken, walletType])
 
   const addBet = (): void => {
     if (bets.length < 4) {
@@ -267,35 +256,35 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
         isAutoCashOutEnabled: false,
         isAutoBetEnabled: false,
         gameId: 0,
-      };
-      setBets([...bets, newBet]);
-      setActiveBetIndex(bets.length);
+      }
+      setBets([...bets, newBet])
+      setActiveBetIndex(bets.length)
     }
-  };
+  }
 
   const removeBet = (index: number): void => {
     if (bets.length > 1) {
-      const newBets = [...bets];
-      newBets.splice(index, 1);
-      setBets(newBets);
+      const newBets = [...bets]
+      newBets.splice(index, 1)
+      setBets(newBets)
       if (activeBetIndex >= newBets.length) {
-        setActiveBetIndex(newBets.length - 1);
+        setActiveBetIndex(newBets.length - 1)
       }
     }
-  };
+  }
 
   const updateBet = (index: number, updatedBet: Bet): void => {
-    const newBets = [...bets];
-    newBets[index] = updatedBet;
-    setBets(newBets);
-  };
+    const newBets = [...bets]
+    newBets[index] = updatedBet
+    setBets(newBets)
+  }
 
   return (
     <div className="bg-black bg-opacity-90 text-white rounded-lg border border-gray-800 shadow-lg overflow-hidden">
       <audio ref={cashoutSoundRef} preload="auto">
         <source src="/sounds/cashout.wav" type="audio/wav" />
       </audio>
-      
+
       <div className="flex border-b border-gray-800">
         <button
           className={`flex-1 py-3 font-medium text-sm transition-all duration-200 ${
@@ -360,16 +349,11 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
         ) : (
           <div className="space-y-4">
             <div className="bg-gray-900 rounded-lg p-4 border border-gray-800">
-              <h3 className="text-lg font-medium mb-4 text-purple-400">
-                Wallet Settings
-              </h3>
+              <h3 className="text-lg font-medium mb-4 text-purple-400">Wallet Settings</h3>
 
               <div className="space-y-4">
                 <div className="relative">
-                  <label
-                    htmlFor="wallet-type-select"
-                    className="block text-sm font-medium text-gray-400 mb-2"
-                  >
+                  <label htmlFor="wallet-type-select" className="block text-sm font-medium text-gray-400 mb-2">
                     Select Active Wallet:
                   </label>
                   <div className="relative">
@@ -398,12 +382,7 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
                         viewBox="0 0 24 24"
                         xmlns="http://www.w3.org/2000/svg"
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M19 9l-7 7-7-7"
-                        ></path>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
                       </svg>
                     </div>
                   </div>
@@ -411,12 +390,8 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
 
                 <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-400">
-                      Current Balance:
-                    </span>
-                    <span className="text-lg font-bold text-white">
-                      {balance.toFixed(2)} XAF
-                    </span>
+                    <span className="text-sm text-gray-400">Current Balance:</span>
+                    <span className="text-lg font-bold text-white">{balance.toFixed(2)} XAF</span>
                   </div>
                   <div className="h-1 w-full bg-gray-700 mt-3 rounded-full overflow-hidden">
                     <div
@@ -427,18 +402,10 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
                 </div>
 
                 <div className="bg-gray-800 p-3 rounded-lg">
-                  <h4 className="text-sm font-medium text-gray-300 mb-2">
-                    Wallet Status
-                  </h4>
+                  <h4 className="text-sm font-medium text-gray-300 mb-2">Wallet Status</h4>
                   <div className="flex items-center space-x-2 text-xs text-gray-400">
-                    <div
-                      className={`w-2 h-2 rounded-full ${
-                        walletType ? "bg-green-500" : "bg-red-500"
-                      }`}
-                    ></div>
-                    <span>
-                      {walletType ? "Wallet Selected" : "No Wallet Selected"}
-                    </span>
+                    <div className={`w-2 h-2 rounded-full ${walletType ? "bg-green-500" : "bg-red-500"}`}></div>
+                    <span>{walletType ? "Wallet Selected" : "No Wallet Selected"}</span>
                   </div>
 
                   {!walletType && (
@@ -451,21 +418,16 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
             </div>
 
             <div className="bg-blue-900 bg-opacity-20 rounded-lg p-3 border border-blue-800">
-              <h4 className="text-sm font-medium text-blue-400">
-                Wallet Information
-              </h4>
+              <h4 className="text-sm font-medium text-blue-400">Wallet Information</h4>
               <ul className="mt-2 text-xs text-gray-400 space-y-1">
                 <li>
-                  • <span className="text-white">Deposit Wallet</span>: Main
-                  wallet for your deposits
+                  • <span className="text-white">Deposit Wallet</span>: Main wallet for your deposits
                 </li>
                 <li>
-                  • <span className="text-white">Bonus Wallet</span>: Contains
-                  bonus funds{" "}
+                  • <span className="text-white">Bonus Wallet</span>: Contains bonus funds{" "}
                 </li>
                 <li>
-                  • <span className="text-white">Withdrawable Wallet</span>:
-                  Funds available for immediate withdrawal
+                  • <span className="text-white">Withdrawable Wallet</span>: Funds available for immediate withdrawal
                 </li>
               </ul>
             </div>
@@ -473,7 +435,7 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
         )}
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default BettingControls;
+export default BettingControls
