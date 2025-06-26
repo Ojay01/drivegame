@@ -57,52 +57,6 @@ app.prepare().then(() => {
   });
 });
 
-// function startGameCycle(io, history) {
-//   // let gameState = 'betting';
-//   // let multiplier = 1;
-//   let crashPoint = 0;
-
-//   const runGameCycle = () => {
-//     gameState = 'betting';
-//     io.emit('game_state', { type: 'game_state', state: gameState });
-//     io.emit('multiplier', { type: 'multiplier', value: 1 });
-
-//     setTimeout(() => {
-//       gameState = 'driving';
-//       multiplier = 1;
-      
-//       // Generate crash point with 30/70 house advantage
-//       crashPoint = generateCrashPoint();
-      
-//       io.emit('game_state', { type: 'game_state', state: gameState });
-//       io.emit('crash_point', { type: 'crash_point', value: crashPoint });
-
-//       const multiplierInterval = setInterval(() => {
-//         // Dynamic increment based on current multiplier value
-//         const increment = multiplier < 5 ? 0.02 : multiplier < 10 ? 0.03 : 0.05;
-//         multiplier = Number((multiplier + increment).toFixed(2));
-        
-//         io.emit('multiplier', { type: 'multiplier', value: multiplier });
-
-//         if (multiplier >= crashPoint) {
-//           clearInterval(multiplierInterval);
-//           gameState = 'crashed';
-//           io.emit('game_state', { type: 'game_state', state: gameState });
-          
-//           history.unshift({
-//             multiplier: multiplier.toFixed(2),
-//             result: 'crash',
-//             winnings: 0
-//           });
-          
-//           if (history.length > 25) history.pop();
-//           io.emit('history', { type: 'history', items: history });
-          
-//           setTimeout(runGameCycle, 1500);
-//         }
-//       }, 50);
-//     }, 6000);
-//   };
 function startGameCycle(io, history) {
   let crashPoint = 0;
 
@@ -148,7 +102,7 @@ function startGameCycle(io, history) {
             setTimeout(runGameCycle, 1500);
           }
         }, 50);
-      }, 1); // lockbets lasts 1 millisecond
+      }, 100); // lockbets lasts 1 millisecond
     }, 6000); // betting lasts 6 seconds
   };
 

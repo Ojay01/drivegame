@@ -44,7 +44,11 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
     betsRef.current = bets
   }, [bets])
 
+
+
   useEffect(() => {
+
+    // console.log("Game state changed:", gameState);
     // lockbets phase - IMMEDIATELY lock all pending bets
     if (prevGameState !== "lockbets" && gameState === "lockbets") {
       let updatedBets = [...betsRef.current]
