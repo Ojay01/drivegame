@@ -102,7 +102,7 @@ function startGameCycle(io, history) {
             setTimeout(runGameCycle, 1500);
           }
         }, 50);
-      }, 200); // lockbets lasts 1 millisecond
+      }, 300); // lockbets lasts 1 millisecond
     }, 6000); // betting lasts 6 seconds
   };
 

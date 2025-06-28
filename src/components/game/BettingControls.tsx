@@ -48,8 +48,6 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
 
   useEffect(() => {
 
-    // console.log("Game state changed:", gameState);
-    // lockbets phase - IMMEDIATELY lock all pending bets
     if (prevGameState !== "lockbets" && gameState === "lockbets") {
       let updatedBets = [...betsRef.current]
       const pendingBets = updatedBets.filter((bet) => bet.pendingBet)
@@ -198,8 +196,8 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
           bet.isAutoCashOutEnabled &&
           typeof bet.autoCashOut === "number" &&
           multiplier >= bet.autoCashOut &&
-          typeof bet.gameId === "number" &&
-          (authToken ? bet.gameId > 0 : bet.gameId === 0)
+          typeof bet.gameId === "number" 
+          // (authToken ? bet.gameId > 0 : bet.gameId === 0)
 
         if (isValidAutoCashOut && !alreadyCashedOut) {
           cashedOutRef.current.add(cashoutKey)
