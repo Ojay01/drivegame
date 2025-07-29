@@ -7,12 +7,12 @@ type TabType = "global" | "personal" | "topbets";
 
 interface GameHistoryProps {
   authToken: string | null;
-  clearSession?: boolean; 
+  clearSession?: boolean;
 }
 
-const GameHistory: React.FC<GameHistoryProps> = ({ 
-  authToken, 
-  clearSession = false
+const GameHistory: React.FC<GameHistoryProps> = ({
+  authToken,
+  clearSession = false,
 }) => {
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,100 +21,124 @@ const GameHistory: React.FC<GameHistoryProps> = ({
   const [authUserId, setAuthUserId] = useState<number | null>(null);
   const [lastClearSession, setLastClearSession] = useState<boolean>(false);
   const [liveGames, setLiveGames] = useState<Game[]>([]);
-  const [showPersonalTopBets, setShowPersonalTopBets] = useState<boolean>(false);
-  
-
-useEffect(() => {
-  if (clearSession && !lastClearSession) {
-    setGames([]);
-    setLiveGames([]); 
-  }
-  setLastClearSession(clearSession);
-}, [clearSession, lastClearSession]);
-
-
+  const [showPersonalTopBets, setShowPersonalTopBets] =
+    useState<boolean>(false);
 
   useEffect(() => {
-  if (!authToken) return;
+    if (clearSession && !lastClearSession) {
+      setGames([]);
+      setLiveGames([]);
+    }
+    setLastClearSession(clearSession);
+  }, [clearSession, lastClearSession]);
 
-  let isMounted = true;
+  useEffect(() => {
+    if (!authToken) return;
 
-  const fetchGames = async () => {
-    try {
-      const response = await getGames(authToken);
-      if (!isMounted) return;
+    let isMounted = true;
 
-      setGames(response.games);
-      setAuthUserId(response.authUser);
+    const fetchGames = async () => {
+      try {
+        const response = await getGames(authToken);
+        if (!isMounted) return;
 
-      // Update liveGames
-      setLiveGames((prevLiveGames) => {
-        const updatedLiveGames = [...prevLiveGames];
-        const existingIds = new Set(prevLiveGames.map(g => g.id));
+        setGames(response.games);
+        setAuthUserId(response.authUser);
 
-        for (const newGame of response.games) {
-          const existingIndex = updatedLiveGames.findIndex(g => g.id === newGame.id);
+        // Update liveGames
+        setLiveGames((prevLiveGames) => {
+          const updatedLiveGames = [...prevLiveGames];
+          const existingIds = new Set(prevLiveGames.map((g) => g.id));
 
-          // Add if new and was playing
-          if (!existingIds.has(newGame.id) && newGame.result === "playing") {
-            updatedLiveGames.push(newGame);
-          }
+          for (const newGame of response.games) {
+            const existingIndex = updatedLiveGames.findIndex(
+              (g) => g.id === newGame.id
+            );
 
-          // Update existing entry
-          if (existingIndex !== -1) {
-            if (newGame.result === "lost") {
-              // Remove if lost
-              updatedLiveGames.splice(existingIndex, 1);
-            } else {
-              // Update if still playing or became won
-              updatedLiveGames[existingIndex] = newGame;
+            // Add if new and was playing
+            if (!existingIds.has(newGame.id) && newGame.result === "playing") {
+              updatedLiveGames.push(newGame);
+            }
+
+            // Update existing entry
+            if (existingIndex !== -1) {
+              if (newGame.result === "lost") {
+                // Remove if lost
+                updatedLiveGames.splice(existingIndex, 1);
+              } else {
+                // Update if still playing or became won
+                updatedLiveGames[existingIndex] = newGame;
+              }
             }
           }
+
+          return updatedLiveGames;
+        });
+
+        setError(null);
+      } catch (err) {
+        if (isMounted) {
+          setError("Failed to load game history");
         }
-
-        return updatedLiveGames;
-      });
-
-      setError(null);
-    } catch (err) {
-      if (isMounted) {
-        setError("Failed to load game history");
+      } finally {
+        if (isMounted) setLoading(false);
       }
-    } finally {
-      if (isMounted) setLoading(false);
+    };
+
+    fetchGames();
+    const intervalId = setInterval(fetchGames, 1000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+  }, [authToken]);
+
+  function generateConsistentAlias(username: string): string {
+    const chars =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    const hash = Array.from(username).reduce(
+      (acc, char, idx) => acc + char.charCodeAt(0) * (idx + 1),
+      0
+    );
+
+    // Use simple seeded pseudo-random generation from the hash
+    let alias = "";
+    let seed = hash;
+    for (let i = 0; i < 10; i++) {
+      seed = (seed * 9301 + 49297) % 233280; // Linear Congruential Generator
+      const index = Math.floor((seed / 233280) * chars.length);
+      alias += chars.charAt(index);
     }
-  };
 
-  fetchGames();
-  const intervalId = setInterval(fetchGames, 1000);
-
-  return () => {
-    isMounted = false;
-    clearInterval(intervalId);
-  };
-}, [authToken]);
+    return alias;
+  }
 
   // Calculate statistics for live games
   const liveStats = useMemo(() => {
-    const totalCashoutCount = liveGames.filter(game => game.result === "won").length;
+    const totalCashoutCount = liveGames.filter(
+      (game) => game.result === "won"
+    ).length;
     const totalLiveCount = liveGames.length;
-    
+
     return {
       totalCashoutCount,
-      totalLiveCount
+      totalLiveCount,
     };
   }, [liveGames]);
 
   // Filter games based on active tab
   const filteredGames = useMemo(() => {
     if (activeTab === "personal" && authUserId) {
-      const personalGames = games.filter(game => String(game.user_id) === String(authUserId));
-      
+      const personalGames = games.filter(
+        (game) => String(game.user_id) === String(authUserId)
+      );
+
       // Sort by stake if showPersonalTopBets is enabled
       if (showPersonalTopBets) {
         return personalGames.sort((a, b) => (b.stake || 0) - (a.stake || 0));
       }
-      
+
       return personalGames;
     } else if (activeTab === "global") {
       // Show all games for global tab (playing, won, lost)
@@ -151,13 +175,13 @@ useEffect(() => {
   const getAvatarColor = (username: string) => {
     const colors = [
       "bg-red-500",
-      "bg-blue-500", 
+      "bg-blue-500",
       "bg-green-500",
       "bg-yellow-500",
       "bg-purple-500",
       "bg-pink-500",
       "bg-indigo-500",
-      "bg-teal-500"
+      "bg-teal-500",
     ];
     const index = username.charCodeAt(0) % colors.length;
     return colors[index];
@@ -167,10 +191,10 @@ useEffect(() => {
   const getDisplayValues = (game: Game) => {
     const multiplier = game.score || 0;
     const payout = game.stake * multiplier;
-    
+
     return {
       multiplier,
-      payout
+      payout,
     };
   };
 
@@ -206,26 +230,32 @@ useEffect(() => {
       <div className="flex items-center justify-between mb-4 border-b border-gray-700 pb-2">
         <div className="flex items-center">
           <History className="mr-2 text-blue-400 flex-shrink-0" size={20} />
-          <h3 className="font-medium text-base sm:text-lg truncate">Game History</h3>
+          <h3 className="font-medium text-base sm:text-lg truncate">
+            Game History
+          </h3>
         </div>
-        
+
         {/* Live Statistics */}
         <div className="flex items-center text-xs sm:text-sm overflow-hidden">
           <div className="flex items-center text-gray-300 whitespace-nowrap">
-            <span className="font-mono text-green-400">{liveStats.totalCashoutCount}</span>
+            <span className="font-mono text-green-400">
+              {liveStats.totalCashoutCount}
+            </span>
             <span className="mx-1 text-gray-500">/</span>
-            <span className="font-mono text-orange-400">{liveStats.totalLiveCount}</span>
+            <span className="font-mono text-orange-400">
+              {liveStats.totalLiveCount}
+            </span>
           </div>
         </div>
       </div>
-      
+
       {/* Tab Navigation */}
       <div className="flex justify-between mb-4 border-b border-gray-700 overflow-x-auto">
         <button
           onClick={() => setActiveTab("global")}
           className={`flex items-center px-3 sm:px-4 py-2 whitespace-nowrap flex-shrink-0 ${
-            activeTab === "global" 
-              ? "border-b-2 border-blue-400 text-blue-400" 
+            activeTab === "global"
+              ? "border-b-2 border-blue-400 text-blue-400"
               : "text-gray-400 hover:text-gray-200"
           }`}
         >
@@ -235,8 +265,8 @@ useEffect(() => {
         <button
           onClick={() => setActiveTab("topbets")}
           className={`flex items-center px-3 sm:px-4 py-2 whitespace-nowrap flex-shrink-0 ${
-            activeTab === "topbets" 
-              ? "border-b-2 border-blue-400 text-blue-400" 
+            activeTab === "topbets"
+              ? "border-b-2 border-blue-400 text-blue-400"
               : "text-gray-400 hover:text-gray-200"
           }`}
         >
@@ -246,8 +276,8 @@ useEffect(() => {
         <button
           onClick={() => setActiveTab("personal")}
           className={`flex items-center px-3 sm:px-4 py-2 whitespace-nowrap flex-shrink-0 ${
-            activeTab === "personal" 
-              ? "border-b-2 border-blue-400 text-blue-400" 
+            activeTab === "personal"
+              ? "border-b-2 border-blue-400 text-blue-400"
               : "text-gray-400 hover:text-gray-200"
           }`}
         >
@@ -272,57 +302,85 @@ useEffect(() => {
           </button>
         </div>
       )}
-      
+
       <div className="max-h-96 sm:max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600">
         {filteredGames.length > 0 ? (
           <div className="space-y-1">
             {filteredGames.map((game: Game) => {
               const isCurrentUser = isCurrentUserGame(game);
-              const avatarInitials = getAvatarInitials(game.username);
-              const avatarColor = getAvatarColor(game.username);
+              const alias = generateConsistentAlias(game.username);
+              const avatarInitials = getAvatarInitials(alias);
+              const avatarColor = getAvatarColor(alias);
               const { multiplier, payout } = getDisplayValues(game);
               const multiplierColor = getMultiplierColor(multiplier);
               const rowBg = getRowBackground(game);
-              
+
               return (
-                <div key={game.id} className={`${rowBg} border rounded-lg w-fit p-1 transition-all duration-200`}>
+                <div
+                  key={game.id}
+                  className={`${rowBg} border rounded-lg w-fit p-1 transition-all duration-200`}
+                >
                   <div className="flex items-center justify-between">
                     {/* Left side - Avatar and Username */}
-                    <div className="flex items-center min-w-0 flex-shrink-0" style={{ width: '120px' }}>
-                      <div className={`w-6 h-6 rounded-full ${avatarColor} flex items-center justify-center text-white font-medium text-sm mr-3 flex-shrink-0`}>
+                    <div
+                      className="flex items-center min-w-0 flex-shrink-0"
+                      style={{ width: "120px" }}
+                    >
+                      <div
+                        className={`w-6 h-6 rounded-full ${avatarColor} flex items-center justify-center text-white font-medium text-sm mr-3 flex-shrink-0`}
+                      >
                         {avatarInitials}
                       </div>
                       <div className="min-w-0">
                         <div className="font-medium truncate text-sm">
                           {isCurrentUser ? (
-                            <span className="text-blue-400">{game.username}</span>
+                            <span className="text-blue-400 block max-w-[80px] truncate">
+                              {generateConsistentAlias(game.username)}
+                            </span>
                           ) : (
-                            <span className="text-white">{game.username}</span>
+                            <span className="text-white block max-w-[80px] truncate">
+                              {generateConsistentAlias(game.username)}
+                            </span>
                           )}
                         </div>
                       </div>
                     </div>
 
                     {/* Bet Amount */}
-                    <div className="flex items-center text-gray-300 flex-shrink-0 min-w-0" style={{ width: '80px' }}>
-                      <span className="font-mono text-sm">₣{game.stake.toFixed(2)}</span>
+                    <div
+                      className="flex items-center text-gray-300 flex-shrink-0 min-w-0"
+                      style={{ width: "80px" }}
+                    >
+                      <span className="font-mono text-sm">
+                        ₣{game.stake.toFixed(2)}
+                      </span>
                     </div>
 
                     {/* Multiplier */}
-                    <div className={`font-mono font-bold text-sm flex-shrink-0 min-w-0 text-center ${multiplierColor}`} style={{ width: '60px' }}>
+                    <div
+                      className={`font-mono font-bold text-sm flex-shrink-0 min-w-0 text-center ${multiplierColor}`}
+                      style={{ width: "60px" }}
+                    >
                       {multiplier.toFixed(2)}x
                     </div>
 
                     {/* Payout or Status */}
-                    <div className="flex items-center flex-shrink-0 min-w-0 text-right justify-end" style={{ width: '80px' }}>
+                    <div
+                      className="flex items-center flex-shrink-0 min-w-0 text-right justify-end"
+                      style={{ width: "80px" }}
+                    >
                       {game.result === "won" ? (
-                        <span className="font-mono text-sm text-gray-300">₣{payout.toFixed(2)}</span>
+                        <span className="font-mono text-sm text-gray-300">
+                          ₣{payout.toFixed(2)}
+                        </span>
                       ) : (
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          game.result === "playing" 
-                            ? "bg-yellow-500/20 text-yellow-400" 
-                            : "bg-red-500/20 text-red-400"
-                        }`}>
+                        <span
+                          className={`px-2 py-1 rounded text-xs font-medium ${
+                            game.result === "playing"
+                              ? "bg-yellow-500/20 text-yellow-400"
+                              : "bg-red-500/20 text-red-400"
+                          }`}
+                        >
                           {game.result === "playing" ? "PLAYING" : "CRASH"}
                         </span>
                       )}
@@ -334,7 +392,7 @@ useEffect(() => {
           </div>
         ) : (
           <div className="py-8 text-center text-gray-400">
-            {activeTab === "personal" 
+            {activeTab === "personal"
               ? "You haven't placed any bets yet."
               : activeTab === "topbets"
               ? "No live bets found."

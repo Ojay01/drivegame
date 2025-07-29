@@ -13,8 +13,8 @@ let gameState = 'betting';
 let multiplier = 1;
 
 let gameSettings = {
-  max_number: 2,
-  next_round_number: 1.5,
+  max_number: 100,
+  next_round_number: 1,
   mode: 'normal',
 };
 
