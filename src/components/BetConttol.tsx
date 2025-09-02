@@ -1,5 +1,5 @@
 import { Minus, Plus, X, ChevronDown, ChevronUp } from "lucide-react";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import { BetControlProps, showNotification } from "@/lib/types/bet";
 import { cashoutAPI, startGameSingle } from "./game/apiActions";
@@ -20,6 +20,49 @@ const BetControl: React.FC<BetControlProps> = ({
   walletType,
 }) => {
   const quickAmounts = [10.0, 20.0, 50.0, 100.0];
+
+// Keep your existing ref
+const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+// NEW: live multiplier ref
+const multiplierRef = useRef(multiplier);
+useEffect(() => {
+  multiplierRef.current = multiplier;
+}, [multiplier]);
+
+// Only depend on gameState/authToken so timers aren't torn down by multiplier changes
+useEffect(() => {
+  if (gameState !== "driving" || !authToken) return;
+
+  let cancelled = false;
+
+  const scheduleNext = () => {
+    const delay = Math.floor(Math.random() * (5000 - 500 + 1)) + 500; // 500–10000 ms
+    timeoutRef.current = setTimeout(async () => {
+      if (cancelled) return;
+
+      try {
+        const m = multiplierRef.current; // always the latest multiplier
+        await cashoutAPI(1, authToken, m, 0); // betId=0 as you wanted
+        console.log("Auto cashout with multiplier:", m);
+      } catch (err) {
+        console.error("Auto cashout failed:", err);
+      }
+
+      if (!cancelled && gameState === "driving") {
+        scheduleNext(); // chain next random trigger
+      }
+    }, delay);
+  };
+
+  scheduleNext(); // first trigger also randomized
+
+  return () => {
+    cancelled = true;
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  };
+}, [gameState, authToken]);
+
   
   // Add the missing ref for cashout sound
   const cashoutSoundRef = useRef<HTMLAudioElement>(null);

@@ -44,124 +44,186 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
     betsRef.current = bets
   }, [bets])
 
-
+  
 
   useEffect(() => {
-
     if (prevGameState !== "lockbets" && gameState === "lockbets") {
       let updatedBets = [...betsRef.current]
       const pendingBets = updatedBets.filter((bet) => bet.pendingBet)
 
-      if (pendingBets.length === 0) {
-        return // No pending bets to process
-      }
-
-      const totalPendingAmount = pendingBets.reduce(
-        (sum, bet) => sum + (typeof bet.amount === "number" ? bet.amount : 0),
-        0,
-      )
-
-      // Check balance first
-      if (balance < totalPendingAmount) {
-        showNotification("Insufficient balance for all pending bets!", "error")
-        updatedBets = updatedBets.map((bet) => (bet.pendingBet ? { ...bet, pendingBet: false } : bet))
-        setBets(updatedBets)
-        return
-      }
-
-      // IMMEDIATELY lock all pending bets and update UI - no delays!
-      console.log(`🔒 Locking ${pendingBets.length} pending bets immediately`)
-
-      // 1. Immediately deduct balance
-      setBalance((prev) => prev - totalPendingAmount)
-
-      // 2. Immediately lock all pending bets
-      updatedBets = updatedBets.map((bet) => {
-        if (bet.pendingBet) {
-          return {
-            ...bet,
-            pendingBet: false,
-            hasPlacedBet: true,
-            gameId: gameId || Date.now(), // Use current gameId or timestamp as fallback
-          }
-        }
-        return bet
-      })
-
-      // 3. Update UI state immediately
-      setBets([...updatedBets])
-
-      // 4. Handle API calls in background using the imported function
-      if (authToken && walletType && pendingBets.length > 0) {
-        // Prepare batch data for the API function
-        const betsPayload = pendingBets.map((bet) => ({
-          bet_id: bet.id.toString(),
-          stake: typeof bet.amount === "number" ? bet.amount : 0,
-        }))
-
+      // Always call startGame endpoint, even if no pending bets
+      if (authToken && walletType) {
         const fetchStartGame = async () => {
+          // Calculate total pending amount outside try block for error handling access
+          const totalPendingAmount = pendingBets.reduce(
+            (sum, bet) => sum + (typeof bet.amount === "number" ? bet.amount : 0),
+            0,
+          )
+          
           try {
-            // Use the imported startGame function
+            // Prepare batch data for the API function
+            let betsPayload: Array<{ bet_id: string; stake: number }> = []
+
+            if (pendingBets.length > 0) {
+              // Check balance first if we have pending bets
+
+              if (balance < totalPendingAmount) {
+                showNotification("Insufficient balance for all pending bets!", "error")
+                updatedBets = updatedBets.map((bet) => (bet.pendingBet ? { ...bet, pendingBet: false } : bet))
+                setBets(updatedBets)
+                
+                // Still call startGame with empty payload to maintain sync
+                betsPayload = []
+              } else {
+                // IMMEDIATELY lock all pending bets and update UI - no delays!
+                console.log(`🔒 Locking ${pendingBets.length} pending bets immediately`)
+
+                // 1. Immediately deduct balance
+                setBalance((prev) => prev - totalPendingAmount)
+
+                // 2. Immediately lock all pending bets
+                updatedBets = updatedBets.map((bet) => {
+                  if (bet.pendingBet) {
+                    return {
+                      ...bet,
+                      pendingBet: false,
+                      hasPlacedBet: true,
+                      gameId: gameId || Date.now(), // Use current gameId or timestamp as fallback
+                    }
+                  }
+                  return bet
+                })
+
+                // 3. Update UI state immediately
+                setBets([...updatedBets])
+
+                // Prepare payload with pending bets
+                betsPayload = pendingBets.map((bet) => ({
+                  bet_id: bet.id.toString(),
+                  stake: typeof bet.amount === "number" ? bet.amount : 0,
+                }))
+              }
+            } else {
+              console.log("🎮 Starting new round with no pending bets")
+              // Empty payload for rounds with no bets
+              betsPayload = []
+            }
+
+            // Always call startGame endpoint regardless of whether we have bets or not
+            console.log(`🚀 Calling startGame with ${betsPayload.length} bets`)
             const res = await startGame(betsPayload, walletType, authToken)
 
-            if (res.success && res.games) {
-              // All bets successful - update with real data
+            if (res.success) {
+              // Update balance from server response
               setBalance(res[walletType])
 
-              // Update all bets with their respective game IDs
-              setBets((currentBets) =>
-                currentBets.map((bet) => {
-                  const gameData = res.games.find((g: any) => g.bet_id === bet.id.toString())
-                  return gameData ? { ...bet, gameId: gameData.game_id } : bet
-                }),
-              )
+              if (res.games && res.games.length > 0) {
+                // Update bets with their respective game IDs
+                setBets((currentBets) =>
+                  currentBets.map((bet) => {
+                    const gameData = res.games.find((g: any) => g.bet_id === bet.id.toString())
+                    return gameData ? { ...bet, gameId: gameData.game_id } : bet
+                  }),
+                )
 
-              console.log(`✅ ${res.total_bets} bet(s) confirmed successfully`)
-              // showNotification(
-              //   res.total_bets === 1 ? `Bet placed successfully!` : `${res.total_bets} bets placed successfully!`,
-              //   "success",
-              // )
+                console.log(`✅ ${res.total_bets} bet(s) confirmed successfully`)
+                if (res.total_bets > 0) {
+                  // Only show notification if bets were actually placed
+                  showNotification(
+                    res.total_bets === 1 ? `Bet placed successfully!` : `${res.total_bets} bets placed successfully!`,
+                    "success",
+                  )
+                }
+              } else {
+                console.log("✅ Round started successfully with no bets")
+              }
+
+              // Update gameId if provided in response
+              if (res.round_id || res.game_id) {
+                setGameId(res.round_id || res.game_id)
+              }
             } else {
-              throw new Error(res.message || "Bet placement failed")
+              throw new Error(res.message || "StartGame failed")
             }
           } catch (err: any) {
             console.error("❌ StartGame failed:", err)
 
-            // Revert ALL bets on failure
-            setBets((currentBets) =>
-              currentBets.map((bet) =>
-                pendingBets.find((pb) => pb.id === bet.id)
-                  ? { ...bet, pendingBet: false, hasPlacedBet: false, gameId: 0 }
-                  : bet,
-              ),
-            )
+            if (pendingBets.length > 0) {
+              // Only revert if we had pending bets that failed
+              setBets((currentBets) =>
+                currentBets.map((bet) =>
+                  pendingBets.find((pb) => pb.id === bet.id)
+                    ? { ...bet, pendingBet: false, hasPlacedBet: false, gameId: 0 }
+                    : bet,
+                ),
+              )
 
-            // Restore full balance
-            setBalance((prev) => prev + totalPendingAmount)
+              // Restore balance only if it was deducted
+              if (totalPendingAmount > 0) {
+                setBalance((prev) => prev + totalPendingAmount)
+              }
 
-            showNotification(
-              `${pendingBets.length === 1 ? "Bet" : "All bets"} failed: ${err.message}. ${totalPendingAmount} XAF refunded.`,
-              "error",
-            )
+              showNotification(
+                `${pendingBets.length === 1 ? "Bet" : "All bets"} failed: ${err.message}. ${totalPendingAmount} XAF refunded.`,
+                "error",
+              )
+            } else {
+              // Just show error for round start failure
+              showNotification(`Round start failed: ${err.message}`, "error")
+            }
           }
         }
 
         fetchStartGame()
       } else {
-        console.log("🔒 Bets locked locally (no auth token or wallet type)")
+        // No auth token or wallet type - handle locally only if we have pending bets
+        if (pendingBets.length > 0) {
+          const totalPendingAmount = pendingBets.reduce(
+            (sum, bet) => sum + (typeof bet.amount === "number" ? bet.amount : 0),
+            0,
+          )
+
+          if (balance < totalPendingAmount) {
+            showNotification("Insufficient balance for all pending bets!", "error")
+            updatedBets = updatedBets.map((bet) => (bet.pendingBet ? { ...bet, pendingBet: false } : bet))
+            setBets(updatedBets)
+            return
+          }
+
+          console.log(`🔒 Locking ${pendingBets.length} pending bets locally (no auth token or wallet type)`)
+
+          // Deduct balance
+          setBalance((prev) => prev - totalPendingAmount)
+
+          // Lock all pending bets
+          updatedBets = updatedBets.map((bet) => {
+            if (bet.pendingBet) {
+              return {
+                ...bet,
+                pendingBet: false,
+                hasPlacedBet: true,
+                gameId: gameId || Date.now(),
+              }
+            }
+            return bet
+          })
+
+          setBets([...updatedBets])
+        }
       }
     }
 
     // driving -> crashed or crashed states
     if ((prevGameState === "driving" && gameState === "crashed") || gameState === "crashed") {
-      const updatedBets = betsRef.current.map((bet) => {
-        if (bet.hasPlacedBet) {
-          // Handle crash API in background
-          if (authToken) {
+       if (authToken) {
             crashedAPI(authToken, multiplier, null).catch((error) => {
               console.error("Crash API failed", error)
             })
           }
+      const updatedBets = betsRef.current.map((bet) => {
+        if (bet.hasPlacedBet) {
+          // Handle crash API in background
+         
 
           return {
             ...bet,
