@@ -1,7 +1,7 @@
 import { Minus, Plus, X, ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { BetControlProps, showNotification } from "@/lib/types/bet";
+import { BetControlProps, showNotification, WalletType } from "@/lib/types/bet";
 import { cashoutAPI, startGameSingle } from "./game/apiActions";
 
 const BetControl: React.FC<BetControlProps> = ({
@@ -21,10 +21,12 @@ const BetControl: React.FC<BetControlProps> = ({
   settings,
 }) => {
   const [quickAmounts, setQuickAmounts] = useState<number[]>([]);
+  const [thresholdMultiplier, setThresholdMultiplier] = useState(1 + (settings?.percentage_to_migrate_balance ?? 50) / 100);
+
 
 useEffect(() => {
   if (settings?.min_bet && settings?.max_bet) {
-    const { min_bet, max_bet } = settings;
+    const { min_bet, max_bet, percentage_to_migrate_balance } = settings;
 
     // Generate 4 amounts evenly spaced
     const step = (max_bet - min_bet) / 3;
@@ -39,6 +41,10 @@ useEffect(() => {
     const uniqueAmounts = Array.from(new Set(amounts));
 
     console.log("⚡ Quick amounts from BE (rounded to 50):", uniqueAmounts, settings);
+        const migrationPercent = percentage_to_migrate_balance ?? 50;
+            console.log("⚡ Quick migration from BE (rounded to 50):", migrationPercent);
+
+    setThresholdMultiplier(1 + migrationPercent / 100);
     setQuickAmounts(uniqueAmounts);
   } else {
     console.log("⚠️ Using default quick amounts, no settings yet");
@@ -295,6 +301,39 @@ const placeBet = (): void => {
     });
   };
 
+
+  const getFinalWallet = (
+    walletType: WalletType,
+    betAmount: number,
+    cashOutAmount: number
+  ): WalletType => {
+  
+    let finalWallet: WalletType;
+  
+    switch (walletType) {
+      case "bonus":
+        finalWallet =
+          cashOutAmount >= betAmount * thresholdMultiplier ? "with_balance" : "bonus"
+        break
+      case "balance":
+        finalWallet =
+          cashOutAmount >= betAmount * thresholdMultiplier ? "with_balance" : "balance"
+        break
+      case "with_balance":
+        finalWallet = "with_balance"
+        break
+      case "commissions":
+        finalWallet =
+          cashOutAmount >= betAmount * thresholdMultiplier ? "with_balance" : "commissions"
+        break
+      default:
+        finalWallet = walletType
+    }
+  
+    return finalWallet
+  }
+  
+  
   const cashOut = (): void => {
     const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
     const cashOutAmount = betAmount * multiplier;
@@ -312,8 +351,11 @@ const placeBet = (): void => {
       hasPlacedBet: false,
       pendingBet: bet.isAutoBetEnabled,
     });
-     setBalance((prev) => prev + cashOutAmount, walletType === 'commissions' ? 'commissions' : 'with_balance');
-
+              const finalWallet = getFinalWallet(walletType as WalletType, betAmount, cashOutAmount);
+    
+    
+      // Immediately update UI state with proper wallet
+      setBalance((prev) => prev + cashOutAmount, finalWallet as any);
     showNotification(
       `Cashed out at ${multiplier.toFixed(2)}x! Won ${cashOutAmount.toFixed(
         2
@@ -331,7 +373,10 @@ const placeBet = (): void => {
         pendingBet: bet.isAutoBetEnabled,
       });
 
-      setBalance((prev) => prev + cashOutAmount);
+      const finalWallet = getFinalWallet(walletType as WalletType, betAmount, cashOutAmount);
+     
+       // Immediately update UI state with proper wallet
+       setBalance((prev) => prev + cashOutAmount, finalWallet as any);
     }
   };
 

@@ -2,7 +2,7 @@ import type React from "react"
 // "use client";
 import { useEffect, useRef, useState } from "react"
 import { useGameContext } from "./GameContext"
-import { type Bet, showNotification } from "@/lib/types/bet"
+import { type Bet, showNotification, WalletType } from "@/lib/types/bet"
 import { cashoutAPI, crashedAPI, startGame } from "./apiActions" // Import the updated function
 import BetControl from "../BetConttol"
 import { FruitSettings } from "@/lib/hooks/useSettings"
@@ -41,6 +41,41 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken, settings }) =
   ])
   const [activeBetIndex, setActiveBetIndex] = useState<number>(0)
   const betsRef = useRef<Bet[]>([])
+  const migrateBalancePercentage = settings?.percentage_to_migrate_balance ?? 50;
+const thresholdMultiplier = 1 + migrateBalancePercentage / 100;
+
+const getFinalWallet = (
+  walletType: WalletType,
+  betAmount: number,
+  cashOutAmount: number
+): WalletType => {
+
+  let finalWallet: WalletType;
+
+  switch (walletType) {
+    case "bonus":
+      finalWallet =
+        cashOutAmount >= betAmount * thresholdMultiplier ? "with_balance" : "bonus"
+      break
+    case "balance":
+      finalWallet =
+        cashOutAmount >= betAmount * thresholdMultiplier ? "with_balance" : "balance"
+      break
+    case "with_balance":
+      finalWallet = "with_balance"
+      break
+    case "commissions":
+      finalWallet =
+        cashOutAmount >= betAmount * thresholdMultiplier ? "with_balance" : "commissions"
+      break
+    default:
+      finalWallet = walletType
+  }
+  return finalWallet
+}
+
+
+
 
   useEffect(() => {
     betsRef.current = bets
@@ -276,12 +311,13 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken, settings }) =
           const betAmount = typeof bet.amount === "number" ? bet.amount : 0
           const cashOutAmount = betAmount * multiplier
 
-          console.log(`🎯 Auto cashout for bet ${index} with gameId ${bet.gameId}`)
+          const finalWallet = getFinalWallet(walletType as WalletType, betAmount, cashOutAmount);
 
-          // Immediately update UI state
-          setBalance((prev) => prev + cashOutAmount, walletType === "commissions" ? "commissions" : "with_balance")
 
-          updatedBets[index] = {
+  // Immediately update UI state with proper wallet
+  setBalance((prev) => prev + cashOutAmount, finalWallet as any);
+
+     updatedBets[index] = {
             ...bet,
             hasPlacedBet: false,
             pendingBet: bet.isAutoBetEnabled,

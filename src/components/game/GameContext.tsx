@@ -40,10 +40,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [carPosition, setCarPosition] = useState<{ x: number; y: number }>({ x: 0, y: 150 });
   const [walletType, setWalletType] = useState<WalletType>("balance");
   const [wallets, setWallets] = useState({
-    balance: 0,
-    bonus: 0,
-    with_balance: 0,
-    commissions: 0,
+    balance: 2500,
+    bonus: 2000,
+    with_balance: 1000,
+    commissions: 500,
   });
 
   const walletBalance = wallets[walletType];
