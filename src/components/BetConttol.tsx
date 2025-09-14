@@ -1,5 +1,5 @@
 import { Minus, Plus, X, ChevronDown, ChevronUp } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { BetControlProps, showNotification } from "@/lib/types/bet";
 import { cashoutAPI, startGameSingle } from "./game/apiActions";
@@ -18,8 +18,37 @@ const BetControl: React.FC<BetControlProps> = ({
   canRemove,
   authToken,
   walletType,
+  settings,
 }) => {
-  const quickAmounts = [10.0, 20.0, 50.0, 100.0];
+  const [quickAmounts, setQuickAmounts] = useState<number[]>([]);
+
+useEffect(() => {
+  if (settings?.min_bet && settings?.max_bet) {
+    const { min_bet, max_bet } = settings;
+
+    // Generate 4 amounts evenly spaced
+    const step = (max_bet - min_bet) / 3;
+    const amounts = [
+      min_bet,
+      min_bet + step,
+      min_bet + step * 2,
+      max_bet,
+    ].map((amt) => Math.round(amt / 50) * 50); // round to nearest 50
+
+    // Remove duplicates in case rounding collapses values
+    const uniqueAmounts = Array.from(new Set(amounts));
+
+    console.log("⚡ Quick amounts from BE (rounded to 50):", uniqueAmounts, settings);
+    setQuickAmounts(uniqueAmounts);
+  } else {
+    console.log("⚠️ Using default quick amounts, no settings yet");
+    setQuickAmounts([10, 20, 50, 100]);
+  }
+}, [settings]);
+
+  const displayQuickAmounts = quickAmounts.length > 0 ? quickAmounts : [10, 20, 50, 100];
+
+
 
 // Keep your existing ref
 const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -307,55 +336,64 @@ const placeBet = (): void => {
   };
 
   // Determine button state
-  const getButtonState = () => {
-    // If game is driving and this bet is active
-    if ((gameState === "driving" || gameState === "lockbets") && bet.hasPlacedBet) {
-      const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
-      const potentialWin = betAmount * multiplier;
-      return {
-        text: `Cash Out\n${potentialWin.toFixed(2)} XAF`,
-        action: cashOut,
-        className: "bg-yellow-500 hover:bg-yellow-400 text-black font-medium",
-      };
-    }
-    // If game crashed and this bet was active
-    else if (gameState === "crashed" && bet.hasPlacedBet) {
-      return {
-        text: "Crashed",
-        action: () => {},
-        className: "bg-gray-600 text-white font-medium",
-        disabled: true,
-      };
-    }
-    // If bet is pending (waiting for next round)
-    else if (bet.pendingBet) {
-      return {
-        text: "Cancel",
-        action: cancelBet,
-        className: "bg-red-600 hover:bg-red-500 text-white font-medium",
-      };
-    }
-    // If bet is active but in betting phase (can still cancel)
-    else if (bet.hasPlacedBet && gameState === "betting") {
-      return {
-        text: "Cancel",
-        action: cancelBet,
-        className: "bg-red-600 hover:bg-red-500 text-white font-medium",
-      };
-    }
-    // Default state - can place bet at any time when not already active
-    else {
-      const canPlaceBet = !bet.hasPlacedBet;
-      const betAmount =
-        typeof bet.amount === "number" ? bet.amount.toFixed(2) : "0.00";
-      return {
-        text: `Bet\n${betAmount} XAF`,
-        action: placeBet,
-        className: "bg-green-500 hover:bg-green-400 text-white font-medium",
-        disabled: !canPlaceBet,
-      };
-    }
-  };
+const getButtonState = () => {
+  // If game is driving and this bet is active
+  if ((gameState === "driving" || gameState === "lockbets") && bet.hasPlacedBet) {
+    const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
+    const potentialWin = betAmount * multiplier;
+    return {
+      text: `Cash Out\n${potentialWin.toFixed(2)} XAF`,
+      action: cashOut,
+      className: "bg-yellow-500 hover:bg-yellow-400 text-black font-medium",
+    };
+  }
+  // If game crashed and this bet was active
+  else if (gameState === "crashed" && bet.hasPlacedBet) {
+    return {
+      text: "Crashed",
+      action: () => {},
+      className: "bg-gray-600 text-white font-medium",
+      disabled: true,
+    };
+  }
+  // If bet is pending (waiting for next round)
+  else if (bet.pendingBet) {
+    return {
+      text: "Cancel",
+      action: cancelBet,
+      className: "bg-red-600 hover:bg-red-500 text-white font-medium",
+    };
+  }
+  // If bet is active but in betting phase (can still cancel)
+  else if (bet.hasPlacedBet && gameState === "betting") {
+    return {
+      text: "Cancel",
+      action: cancelBet,
+      className: "bg-red-600 hover:bg-red-500 text-white font-medium",
+    };
+  }
+  // Default state - can place bet at any time when not already active
+  else {
+    const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
+
+    // Determine if betAmount is valid based on settings
+    const isAmountValid =
+      settings?.min_bet !== undefined &&
+      settings?.max_bet !== undefined &&
+      betAmount >= settings.min_bet &&
+      betAmount <= settings.max_bet;
+
+    const canPlaceBet = !bet.hasPlacedBet && isAmountValid;
+
+    return {
+      text: `Bet\n${betAmount.toFixed(2)} XAF`,
+      action: placeBet,
+      className: "bg-green-500 hover:bg-green-400 text-white font-medium",
+      disabled: !canPlaceBet,
+    };
+  }
+};
+
 
   const buttonState = getButtonState();
 
@@ -418,7 +456,7 @@ const placeBet = (): void => {
             >
               <Minus size={12} />
             </button>
-            <input
+<input
               type="number"
               value={bet.amount}
               onChange={handleBetAmountInput}
@@ -453,7 +491,8 @@ const placeBet = (): void => {
 
         {/* Quick Bet Amounts */}
         <div className="grid grid-cols-4 gap-2 mb-2">
-          {quickAmounts.map((amount) => (
+         {displayQuickAmounts.map((amount) => (
+
             <button
               key={amount}
               onClick={() => {
@@ -581,3 +620,5 @@ const placeBet = (): void => {
 };
 
 export default BetControl;
+
+

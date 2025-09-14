@@ -14,7 +14,7 @@ import GameLoader from "./GameLoader";
 
 // Inner component that uses the game context
 const GameContent: React.FC = () => {
-  const { balance, gameState } = useGameContext();
+  const { balance, gameState, settings } = useGameContext();
   const searchParams = useSearchParams();
   const authToken = searchParams.get("authToken");
   const [clearSession, setClearSession] = useState(false);
@@ -92,10 +92,10 @@ const GameContent: React.FC = () => {
           {/* Game and Controls */}
           <div className="lg:col-span-3 space-y-6">
             <div className="mb-2">
-              <MultiplierHistory />
+              <MultiplierHistory /> 
             </div>
             <GameArea />
-            <BettingControls authToken={authToken} />
+             <BettingControls authToken={authToken} settings={settings ?? null} />
           </div>
 
           {/* History Sidebar */}

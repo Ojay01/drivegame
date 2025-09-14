@@ -160,15 +160,15 @@ function applyModeToCrash(mode, value, max) {
 
   switch (mode) {
     case 'super_easy':
-      return Math.max(value, skewedRandom(0.3)); // heavy bias toward higher
+      return Math.max(value, skewedRandom(0.3));
     case 'easy':
-      return Math.max(value, skewedRandom(0.6)); // medium-high bias
+      return Math.max(value, skewedRandom(0.6)); 
     case 'normal':
       return Math.min(value, skewedRandom(1.2));
     case 'hard':
-      return Math.min(value, skewedRandom(2)); // mostly low values
+      return Math.min(value, skewedRandom(2)); 
     case 'super_hard':
-      return Math.min(value, skewedRandom(3)); // even lower
+      return Math.min(value, skewedRandom(3)); 
     default:
       return value;
   }

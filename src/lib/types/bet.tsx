@@ -1,4 +1,5 @@
 import toast from "react-hot-toast"; // Import toast
+import { FruitSettings } from "../hooks/useSettings";
 export type WalletType = "balance" | "bonus" | "with_balance" | "commissions";
 export interface Bet {
   id: number;
@@ -27,6 +28,7 @@ export interface BetControlProps {
     authToken: string | null;
     gameId: number;
     walletType?: WalletType;
+    settings?: FruitSettings | null;
 }
 
 export const showNotification = (
@@ -99,6 +101,7 @@ export interface GameContextType {
   hasPlacedBet: boolean;
   pendingBet: boolean;
   // placeBet: () => void;
+  settings?: FruitSettings | null;
   cancelBet: () => void;
   handleCashOut: () => void;
   adjustBetAmount: (amount: number) => void;

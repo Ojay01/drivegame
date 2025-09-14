@@ -5,17 +5,19 @@ import { useGameContext } from "./GameContext"
 import { type Bet, showNotification } from "@/lib/types/bet"
 import { cashoutAPI, crashedAPI, startGame } from "./apiActions" // Import the updated function
 import BetControl from "../BetConttol"
+import { FruitSettings } from "@/lib/hooks/useSettings"
 
-// Main Container Component
 
 interface GameControlsProps {
   authToken: string | null
+  settings: FruitSettings | null
 }
 
-const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
+const BettingControls: React.FC<GameControlsProps> = ({ authToken, settings }) => {
   const { gameState, balance, gameId, setGameId, setBalance, walletType, setWalletType, multiplier } = useGameContext()
   const cashedOutRef = useRef<Set<string>>(new Set())
   const cashoutSoundRef = useRef<HTMLAudioElement>(null)
+
 
   const playCashoutSound = () => {
     if (cashoutSoundRef.current) {
@@ -28,7 +30,7 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
   const [bets, setBets] = useState<Bet[]>([
     {
       id: 1,
-      amount: 10.0,
+      amount: settings?.min_bet || 10.0,
       autoCashOut: 2.0,
       hasPlacedBet: false,
       pendingBet: false,
@@ -313,7 +315,7 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
     if (bets.length < 4) {
       const newBet: Bet = {
         id: Date.now(),
-        amount: 10.0,
+        amount: settings?.min_bet || 10.0,
         autoCashOut: 2.0,
         hasPlacedBet: false,
         pendingBet: false,
@@ -394,6 +396,7 @@ const BettingControls: React.FC<GameControlsProps> = ({ authToken }) => {
                     authToken={authToken}
                     gameId={gameId}
                     walletType={walletType}
+                    settings={settings}
                   />
                 ))}
               </div>

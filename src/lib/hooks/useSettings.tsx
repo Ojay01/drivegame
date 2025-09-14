@@ -3,6 +3,7 @@ import { createPublicApiClient } from "@/lib/api";
 
 export type FruitSettings = {
   min_bet: number;
+  max_bet: number;
   percentage_to_migrate_balance: number;
   max_number: number;
   mode: string;
