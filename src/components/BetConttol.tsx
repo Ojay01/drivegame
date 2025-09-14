@@ -376,12 +376,12 @@ const getButtonState = () => {
   else {
     const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
 
-    // Determine if betAmount is valid based on settings
-    const isAmountValid =
-      settings?.min_bet !== undefined &&
-      settings?.max_bet !== undefined &&
-      betAmount >= settings.min_bet &&
-      betAmount <= settings.max_bet;
+    // Use settings if defined, otherwise default min/max
+    const minBet = settings?.min_bet ?? 1;
+    const maxBet = settings?.max_bet ?? 50000;
+
+    // Determine if betAmount is valid based on settings/defaults
+    const isAmountValid = betAmount >= minBet && betAmount <= maxBet;
 
     const canPlaceBet = !bet.hasPlacedBet && isAmountValid;
 
@@ -393,6 +393,7 @@ const getButtonState = () => {
     };
   }
 };
+
 
 
   const buttonState = getButtonState();
