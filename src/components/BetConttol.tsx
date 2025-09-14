@@ -188,43 +188,54 @@ useEffect(() => {
     });
   };
 
-  // Updated toggleAutoBet to set bet as active or pending when turned on
-  const toggleAutoBet = (): void => {
-    if (isControlsDisabled) return;
+const toggleAutoBet = (): void => {
+  if (isControlsDisabled) return;
 
-    const newAutoState = !bet.isAutoBetEnabled;
+  const newAutoState = !bet.isAutoBetEnabled;
+  const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
 
-    // If turning AutoBet on, place bet immediately or set pending
-    if (newAutoState) {
-      const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
+  // Use settings if defined, otherwise default min/max
+  const minBet = settings?.min_bet ?? 1;
+  const maxBet = settings?.max_bet ?? 50000;
 
-      // If we can place the bet immediately (in betting phase)
-      if (gameState === "betting" && balance >= betAmount) {
-        setBalance((prev) => prev - betAmount);
-        onUpdate({
-          ...bet,
-          isAutoBetEnabled: true,
-          hasPlacedBet: true,
-          pendingBet: false,
-        });
-      }
-      // Otherwise set as pending for next round
-      else {
-        onUpdate({
-          ...bet,
-          isAutoBetEnabled: true,
-          pendingBet: true,
-          hasPlacedBet: false,
-        });
-      }
-    } else {
-      // Just turn off AutoBet
+  const isAmountValid = betAmount >= minBet && betAmount <= maxBet;
+
+  // Prevent enabling Auto Bet if amount is invalid
+  if (newAutoState && !isAmountValid) {
+    showNotification(
+      `Bet amount must be between ${minBet} and ${maxBet} XAF to enable Auto Bet`,
+      "error"
+    );
+    return;
+  }
+
+  // If turning AutoBet on, place bet immediately or set pending
+  if (newAutoState) {
+    if (gameState === "betting" && balance >= betAmount) {
+      setBalance((prev) => prev - betAmount);
       onUpdate({
         ...bet,
-        isAutoBetEnabled: false,
+        isAutoBetEnabled: true,
+        hasPlacedBet: true,
+        pendingBet: false,
+      });
+    } else {
+      onUpdate({
+        ...bet,
+        isAutoBetEnabled: true,
+        pendingBet: true,
+        hasPlacedBet: false,
       });
     }
-  };
+  } else {
+    // Just turn off AutoBet
+    onUpdate({
+      ...bet,
+      isAutoBetEnabled: false,
+    });
+  }
+};
+
 
 const placeBet = (): void => {
   const betAmount = typeof bet.amount === "number" ? bet.amount : 0;
@@ -646,6 +657,7 @@ const getButtonState = () => {
               </div>
             </div>
           </div>
+
         </div>
       </div>
 
